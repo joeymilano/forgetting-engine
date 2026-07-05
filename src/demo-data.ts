@@ -1,21 +1,19 @@
 /* =====================================================================
-   demo-data.ts — 离线演示模式预置样例
-   URL 带 ?demo=1 时,完全不调 API,从这里随机取一组。
-   三组高质量中文样例,题材分别为:
-     1) 一段告别
-     2) 一次失败
-     3) 一个没说出口的道歉
-   每组 7 层,严格长度递减,第 7 层 ≤ 4 字。
+   demo-data.ts — 离线演示模式预置样例(双语)
+   URL 带 ?demo=1 时,完全不调 API,从对应语言随机取一组。
+   每组 7 层,严格长度递减,中文第 7 层 ≤ 4 字,英文第 7 层 ≤ 4 字符。
    ===================================================================== */
+
+import type { Lang } from './i18n';
 
 export type StageTuple = [string, string, string, string, string, string, string];
 
-export const DEMO_DATA: StageTuple[] = [
+export const DEMO_DATA_ZH: StageTuple[] = [
   // —— 1. 一段告别 ——
   [
     '2019 年深秋,我们在上海虹桥的最后一班地铁前告别。你围着我送的那条灰色围巾,说以后不要再联系了。后来我删掉了所有照片,只剩下你写给我的那张生日卡片。',
     '那一年的深秋,我们在某个城市的最后一班地铁前告别。你围着那条围巾,说以后不要再联系了。后来我删掉了所有照片,只剩下那张卡片。',
-    '那年的秋天,我们在某处告别。有人围着围巾,说以后别再联系。后来照片都删了,只剩下一张卡片。',
+    '那年的秋天,我们在某处告别。有人围着围巾,说以后别再联系。后来照片都删了,只剩一张卡片。',
     '秋天……在某处告别。有人说,别再联系。照片都没了,只剩一张卡片。',
     '秋天  地铁  围巾  卡片',
     '后来轻了',
@@ -43,8 +41,42 @@ export const DEMO_DATA: StageTuple[] = [
   ],
 ];
 
-/** 随机取一组(不使用 Math.random 之外的状态,演示模式用) */
-export function pickDemo(): string[] {
-  const idx = Math.floor(Math.random() * DEMO_DATA.length);
-  return [...DEMO_DATA[idx]];
+export const DEMO_DATA_EN: StageTuple[] = [
+  // —— 1. A farewell ——
+  [
+    'That deep autumn of 2019, we said goodbye at Shanghai Hongqiao, right before the last metro. You wore the grey scarf I had given you and said we should never speak again. Later I deleted every photo, keeping only the birthday card you wrote me.',
+    'One deep autumn, we said goodbye at a city station before the last train. You wore that scarf and said we should never speak again. Later I deleted every photo, keeping only that card.',
+    'One autumn, we said goodbye somewhere before the last train. Someone wore that scarf and said never to speak again. Later the photos were all deleted, only a card remained.',
+    'Autumn… we said goodbye somewhere… someone said never again… the photos are gone, only a card left.',
+    'autumn  train  scarf  card',
+    'lighter later',
+    '…',
+  ],
+  // —— 2. A failure ——
+  [
+    'I poured two whole years into that project, gave up every weekend, stayed up till four in the morning, and still got the rejection on a Tuesday afternoon. I stared at the screen for a long time, wondering for the first time if I had been wrong from the start.',
+    'I poured a long time into that thing, gave up my weekends, stayed up late, and still got the rejection one afternoon. I stared at the screen for a long time, wondering if I had been wrong from the start.',
+    'I poured a long time into that thing, gave up weekends, stayed up late, and still got rejected. I stared at the screen, wondering if I had been wrong.',
+    'poured so long into it… gave up everything… late nights… still rejected. staring at the screen, doubting.',
+    'late nights  screen  doubt',
+    'so it goes',
+    'oh.',
+  ],
+  // —— 3. An apology never spoken ——
+  [
+    'That day I was the one who said the cruel words first. After you slammed the door, I stood in the living room for a long time, wanting to chase after you, but I never pulled the door open. We never saw each other again, and that sorry stayed behind the door forever.',
+    'That day I was the one who said the cruel words first. After someone left, I stood in the living room for a long time, wanting to chase after them, but I never opened the door. We never met again, and that sorry stayed behind the door.',
+    'That day I said the cruel words first. Someone left, and I stood in the living room a long time, wanting to chase them but never opening the door. That sorry stayed behind the door.',
+    'that day… I said the cruel words first… wanted to chase, never opened the door. that sorry, still behind the door.',
+    'door  sorry',
+    'never spoken',
+    '—',
+  ],
+];
+
+/** 随机取一组(按语言) */
+export function pickDemo(lang: Lang = 'zh'): string[] {
+  const pool = lang === 'zh' ? DEMO_DATA_ZH : DEMO_DATA_EN;
+  const idx = Math.floor(Math.random() * pool.length);
+  return [...pool[idx]];
 }

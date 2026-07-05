@@ -24,8 +24,8 @@ const PORT = Number(process.env.PROXY_PORT || 8787);
 const KEY = process.env.ZHIPU_API_KEY;
 const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
 
-// —— System Prompt(说明书 §4.2,直接使用,不要改写) ——
-import { SYSTEM_PROMPT } from './prompt.js';
+// —— System Prompt(双语,按 body.lang 选择) ——
+import { promptFor } from './prompt.js';
 
 // —— 内存限流:每 IP 每小时 10 次 ——
 const WINDOW = 60 * 60 * 1000;
@@ -98,6 +98,7 @@ const server = http.createServer(async (req, res) => {
     send(res, 400, { error: 'BAD_LENGTH', len: memory.length });
     return;
   }
+  const lang = parsed.lang === 'zh' ? 'zh' : 'en';
 
   if (!KEY) {
     send(res, 500, { error: 'NO_KEY', hint: '请在 .env 设置 ZHIPU_API_KEY' });
@@ -119,7 +120,7 @@ const server = http.createServer(async (req, res) => {
           model: MODEL,
           temperature: 0.7,
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: promptFor(lang) },
             { role: 'user', content: memory },
           ],
         }),

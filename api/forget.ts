@@ -19,7 +19,7 @@ interface Res {
 const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
 const KEY = process.env.ZHIPU_API_KEY;
 
-import { SYSTEM_PROMPT } from '../prompt.js';
+import { promptFor } from '../prompt.js';
 
 const WINDOW = 60 * 60 * 1000;
 const LIMIT = 10;
@@ -62,6 +62,7 @@ export default async function handler(req: Req, res: Res) {
   const body =
     typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
   const memory = typeof body.memory === 'string' ? body.memory.trim() : '';
+  const lang: 'en' | 'zh' = body.lang === 'zh' ? 'zh' : 'en';
   if (memory.length < 30 || memory.length > 300) {
     json(res, 400, { error: 'BAD_LENGTH', len: memory.length });
     return;
@@ -87,7 +88,7 @@ export default async function handler(req: Req, res: Res) {
           model: MODEL,
           temperature: 0.7,
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: promptFor(lang) },
             { role: 'user', content: memory },
           ],
         }),

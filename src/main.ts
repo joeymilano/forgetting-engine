@@ -4,16 +4,13 @@
    全程无导航、无 logo、无 spinner。任何时刻可点元素 ≤ 1。
    ===================================================================== */
 
-import {
-  STAGES,
-  SEALING_LINES,
-  EPILOGUE_PRIMARY,
-  EPILOGUE_SECONDARY,
-  type StageVisual,
-} from './stages';
+import { STAGES, type StageVisual } from './stages';
 import { typewriter } from './typewriter';
 import { generateStages } from './llm';
 import { Weathering, type LayerSpec } from './weathering';
+import { initAmbient } from './ambient';
+import { applyLang, getLang, t, toggleLang } from './i18n';
+import { initMusic } from './music';
 
 // ---------- DOM ----------
 const app = document.getElementById('app')!;
@@ -59,8 +56,21 @@ const weathering = new Weathering(particleCanvas);
 // 测量用 canvas(文字换行计算,与 weathering 内部一致)
 const measureCanvas = document.createElement('canvas');
 const measureCtx = measureCanvas.getContext('2d')!;
-const FONT_FAMILY = `'LXGW WenKai','Songti SC','Noto Serif SC','Source Han Serif SC','PingFang SC',serif`;
+const FONT_FAMILY_EN = `'Cormorant Garamond','EB Garamond',Georgia,'Times New Roman',serif`;
+const FONT_FAMILY_ZH = `'LXGW WenKai','Songti SC','Noto Serif SC','Source Han Serif SC','PingFang SC',serif`;
 const FONT_WEIGHT = '400';
+
+/** 字体族随当前语言切换(英文衬线 / 中文手写体) */
+function fontFamilyOf(): string {
+  return getLang() === 'zh' ? FONT_FAMILY_ZH : FONT_FAMILY_EN;
+}
+
+/** 基准字号:英文衬线体 x-height 偏小,字号放大以保持视觉体量 */
+function baseFontSize(): number {
+  const small = window.innerWidth < 768;
+  if (getLang() === 'zh') return small ? 17 : 20;
+  return small ? 19 : 23;
+}
 
 // ---------- 工具 ----------
 function wait(ms: number): Promise<void> {
@@ -86,7 +96,7 @@ function wrapText(
   lsPx: number,
   wsPx: number,
 ): string {
-  measureCtx.font = `${FONT_WEIGHT} ${fontSize}px ${FONT_FAMILY}`;
+  measureCtx.font = `${FONT_WEIGHT} ${fontSize}px ${fontFamilyOf()}`;
   const chars = Array.from(text);
   const lines: string[] = [];
   let line = '';
@@ -144,7 +154,7 @@ function containerWidth(): number {
 }
 
 function stageMetrics(stage: StageVisual) {
-  const base = window.innerWidth < 768 ? 17 : 20;
+  const base = baseFontSize();
   const fontSize = base * stage.fontSizeScale;
   const lineHeight = fontSize * stage.lineHeight;
   const lsPx = stage.letterSpacing === 'normal' ? 0 : parseFloat(stage.letterSpacing) * fontSize;
@@ -171,7 +181,7 @@ function applyStage(idx: number) {
 
 /** 显示原文(SEALING 阶段,base 样式) */
 function applyRawText(text: string) {
-  const base = window.innerWidth < 768 ? 17 : 20;
+  const base = baseFontSize();
   stageText.style.setProperty('--ls', '0.02em');
   stageText.style.setProperty('--blur', '0px');
   stageText.style.setProperty('--op', '1');
@@ -194,7 +204,7 @@ function specFromEl(): LayerSpec {
     lineHeight: parseFloat(cs.lineHeight) || fontSize * 2.1,
     letterSpacing: parseFloat(cs.letterSpacing) || 0,
     wordSpacing: parseFloat(cs.wordSpacing) || 0,
-    fontFamily: cs.fontFamily || FONT_FAMILY,
+    fontFamily: cs.fontFamily || fontFamilyOf(),
     fontWeight: cs.fontWeight || FONT_WEIGHT,
     width: rect.width,
     left: rect.left,
@@ -294,23 +304,24 @@ async function enterSealing() {
 
   // 加载文案轮播(底部小字,每 2.5s)
   loadingLine.hidden = false;
+  const sealingLines = t().sealing;
   let li = 0;
-  loadingLine.textContent = SEALING_LINES[0];
+  loadingLine.textContent = sealingLines[0];
   const rotateLoading = () => {
     sealingTimers.push(
       setTimeout(() => {
-        li = (li + 1) % SEALING_LINES.length;
-        loadingLine.textContent = SEALING_LINES[li];
+        li = (li + 1) % sealingLines.length;
+        loadingLine.textContent = sealingLines[li];
         rotateLoading();
       }, 2500),
     );
   };
   rotateLoading();
 
-  // 并行:打字机重现原文 + 一次性请求 7 层
+  // 并行:打字机重现原文 + 一次性请求 7 层(带语言)
   const [, generated] = await Promise.all([
     typewriter(stageText, fullText, 50),
-    generateStages(memory),
+    generateStages(memory, getLang()),
   ]);
 
   stages = generated;
@@ -352,7 +363,8 @@ async function gotoStage(nextIdx: number) {
 }
 
 function updateStageChrome(idx: number) {
-  stageBtn.textContent = STAGES[idx - 1].button;
+  const label = stageBtn.querySelector<HTMLElement>('.btn-label');
+  if (label) label.textContent = t().stageButtons[idx - 1];
   stageBtn.disabled = false;
   updateProgress(idx);
   if (idx >= 4) weathering.startAsh(() => stageText);
@@ -377,14 +389,14 @@ async function enterEpilogue() {
   epilogueTimers.push(
     setTimeout(() => {
       epilogueView.hidden = false;
-      epiloguePrimary.textContent = EPILOGUE_PRIMARY;
+      epiloguePrimary.textContent = t().epiloguePrimary;
       epiloguePrimary.classList.add('shown');
     }, 3000),
   );
   // 再 4 秒后次级文字 + 重置入口
   epilogueTimers.push(
     setTimeout(() => {
-      epilogueSecondary.textContent = EPILOGUE_SECONDARY;
+      epilogueSecondary.textContent = t().epilogueSecondary;
       epilogueSecondary.classList.add('shown');
       resetLink.hidden = false;
     }, 7000),
@@ -449,10 +461,32 @@ function init() {
   buildNoise();
   buildProgress();
 
+  // 先应用语言:填充所有 data-i18n 文案 + 语言按钮 active 态(默认英文)
+  applyLang(getLang());
+
+  initAmbient();
+  initMusic();
+
+  // 语言切换:切换后若正处于某阶段,按新字体度量重排当前层
+  const langToggle = document.getElementById('lang-toggle');
+  if (langToggle) {
+    langToggle.addEventListener('click', () => {
+      toggleLang();
+      if (currentIdx >= 1 && currentIdx <= 7 && !isTransitioning) {
+        applyStage(currentIdx);
+      }
+    });
+  }
+
   // 字体就绪后才显示正文,避免 FOUT 破坏氛围
   const reveal = () => app.classList.remove('is-hidden');
   if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(reveal);
+    // 显式触发关键字体加载,确保 canvas 测量准确
+    const loadEn = document.fonts.load?.('400 23px "Cormorant Garamond"');
+    const loadZh = document.fonts.load?.('400 20px "LXGW WenKai"');
+    Promise.all([loadEn, loadZh])
+      .catch(() => {})
+      .finally(() => document.fonts.ready.then(reveal));
   }
   // 兜底:最多等 3s
   setTimeout(reveal, 3000);

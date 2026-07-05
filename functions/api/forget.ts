@@ -25,7 +25,7 @@ function checkRate(ip: string): boolean {
   return rec.count <= LIMIT;
 }
 
-import { SYSTEM_PROMPT } from '../../prompt.js';
+import { promptFor } from '../../prompt.js';
 
 function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -53,9 +53,11 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
   }
 
   let memory = '';
+  let lang: 'en' | 'zh' = 'en';
   try {
-    const body = (await request.json()) as { memory?: string };
+    const body = (await request.json()) as { memory?: string; lang?: string };
     memory = typeof body.memory === 'string' ? body.memory.trim() : '';
+    lang = body.lang === 'zh' ? 'zh' : 'en';
   } catch {
     return json({ error: 'BAD_BODY' }, 400);
   }
@@ -81,7 +83,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
         model: MODEL,
         temperature: 0.7,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: promptFor(lang) },
           { role: 'user', content: memory },
         ],
       }),
