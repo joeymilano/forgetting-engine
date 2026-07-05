@@ -19,6 +19,10 @@ export interface Strings {
   epilogueSecondary: string;
   stageButtons: string[]; // 7 个
   langAria: string;
+  themeAria: string;
+  themeNames: { stardust: string; mist: string; aurora: string };
+  memoriesTitle: string;
+  memoriesSub: string;
 }
 
 const STRINGS: Record<Lang, Strings> = {
@@ -32,6 +36,8 @@ const STRINGS: Record<Lang, Strings> = {
     sealing: [
       'Reading this memory…',
       'Measuring its weight…',
+      'Finding the edges of what it was…',
+      'Letting the words loosen…',
       'Weathering is about to begin…',
     ],
     epiloguePrimary: 'It is no longer here. May you be a little lighter, too.',
@@ -46,6 +52,10 @@ const STRINGS: Record<Lang, Strings> = {
       'Let go',
     ],
     langAria: 'Switch language',
+    themeAria: 'Switch ambient theme',
+    themeNames: { stardust: 'Stardust', mist: 'Mist', aurora: 'Aurora' },
+    memoriesTitle: 'Sealed Memories',
+    memoriesSub: 'What you let go remains here, as light.',
   },
   zh: {
     brand: '遗 忘 引 擎',
@@ -54,11 +64,15 @@ const STRINGS: Record<Lang, Strings> = {
     submit: '交给遗忘引擎',
     reset: '再放下一段',
     footmark: '一台记得如何遗忘的机器',
-    sealing: ['正在读取这段记忆…', '正在测量它的重量…', '风化即将开始…'],
+    sealing: ['正在读取这段记忆…', '正在测量它的重量…', '正在辨认它的轮廓…', '让字句慢慢松动…', '风化即将开始…'],
     epiloguePrimary: '它已经不在这里了。希望你也轻了一点。',
     epilogueSecondary: '— 遗忘引擎 The Forgetting Engine',
     stageButtons: ['继续遗忘', '继续遗忘', '继续', '继续', '快好了', '最后一次', '放手'],
     langAria: '切换语言',
+    themeAria: '切换氛围主题',
+    themeNames: { stardust: '星河', mist: '雾海', aurora: '极光' },
+    memoriesTitle: '已封缄的记忆',
+    memoriesSub: '你放下的,在此化作光。',
   },
 };
 
@@ -109,6 +123,8 @@ export function applyLang(lang: Lang): void {
   setText('[data-i18n="submit"]', s.submit);
   setText('[data-i18n="reset"]', s.reset);
   setText('[data-i18n="footmark"]', s.footmark);
+  setText('[data-i18n="memoriesTitle"]', s.memoriesTitle);
+  setText('[data-i18n="memoriesSub"]', s.memoriesSub);
 
   // hint 允许 <br />
   doc.querySelectorAll<HTMLElement>('[data-i18n="hint"]').forEach((el) => {
@@ -125,6 +141,18 @@ export function applyLang(lang: Lang): void {
   // 语言按钮 active 态
   doc.querySelectorAll<HTMLElement>('.lang-opt').forEach((el) => {
     el.classList.toggle('active', el.dataset.lang === lang);
+  });
+
+  // 主题切换按钮 aria / 各主题点 title(双语)
+  const themeBtn = doc.getElementById('theme-toggle');
+  if (themeBtn) {
+    themeBtn.setAttribute('aria-label', s.themeAria);
+    themeBtn.setAttribute('title', s.themeAria);
+  }
+  const tn = s.themeNames;
+  doc.querySelectorAll<HTMLElement>('.theme-dots i').forEach((el) => {
+    const k = el.dataset.theme as keyof typeof tn | undefined;
+    if (k && tn[k]) el.setAttribute('title', tn[k]);
   });
 
   // 更新正在显示的阶段按钮文案(若处于阶段中)

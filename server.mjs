@@ -22,7 +22,11 @@ try {
 
 const PORT = Number(process.env.PROXY_PORT || 8787);
 const KEY = process.env.ZHIPU_API_KEY;
-const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
+// 智谱 GLM Coding Plan 端点 + 模型(参考 https://docs.bigmodel.cn/cn/coding-plan/quick-start)
+// ⚠ Coding Plan Key 与普通平台 Key 不通用,务必配套使用
+const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
+const MODEL = process.env.GLM_MODEL || 'glm-4.6';
+const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 // —— System Prompt(双语,按 body.lang 选择) ——
 import { promptFor } from './prompt.js';
@@ -109,7 +113,7 @@ const server = http.createServer(async (req, res) => {
   const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
     const resp = await fetch(
-      'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      `${BASE}/chat/completions`,
       {
         method: 'POST',
         headers: {

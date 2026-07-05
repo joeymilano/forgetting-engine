@@ -1,10 +1,23 @@
 /* =====================================================================
    ambient.ts — 沉浸式背景氛围
-   - 粒子尘埃场:常驻飘浮的暖白微光(像被风吹散的灰烬/记忆碎屑)
-   - 鼠标视差:近粒子大幅跟随,远粒子小幅,营造深度
-   - 鼠标引力:靠近时粒子被轻微吸引
+   - 粒子尘埃场:常驻飘浮微光(像被风吹散的灰烬/记忆碎屑)
+   - 鼠标视差:近粒子大幅跟随,远粒子小幅,营造深度(柔和不抽搐)
+   - 鼠标引力:靠近时粒子被轻微吸引(范围克制,避免突变)
+   - 三主题色调:星河暖白 / 雾海冷青 / 极光青绿(setAmbientTheme 切换)
    - 标签页隐藏时停 rAF,可见时恢复
    ===================================================================== */
+
+export type AmbientTheme = 'stardust' | 'mist' | 'aurora';
+
+/** 三主题粒子色调(径向渐变三段) */
+const THEME_TINTS: Record<AmbientTheme, [string, string, string]> = {
+  // 星河:暖白琥珀(烛火 / 暮色灰烬)
+  stardust: ['rgba(255,242,222,1)', 'rgba(255,236,205,0.45)', 'rgba(255,232,200,0)'],
+  // 雾海:冷青白(晨雾 / 冰湖)
+  mist: ['rgba(228,240,248,1)', 'rgba(198,224,238,0.45)', 'rgba(188,218,236,0)'],
+  // 极光:青绿透粉(北光 / 流光)
+  aurora: ['rgba(222,250,232,1)', 'rgba(158,240,202,0.5)', 'rgba(140,224,190,0)'],
+};
 
 const canvas = document.getElementById('ambient-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -22,6 +35,7 @@ let tmx = 0;
 let tmy = 0;
 let running = false;
 let lastT = 0;
+let currentTheme: AmbientTheme = 'stardust';
 
 interface Particle {
   x: number;
@@ -34,19 +48,25 @@ interface Particle {
   depth: number; // 0 近 ~ 1 远
 }
 
-// 软圆点精灵(预生成径向渐变,暖白)
+// 软圆点精灵(预生成径向渐变),按主题切换色调
 let sprite: HTMLCanvasElement;
-function makeSprite(): HTMLCanvasElement {
+function makeSprite(tint: [string, string, string] = THEME_TINTS.stardust): HTMLCanvasElement {
   const s = document.createElement('canvas');
   s.width = s.height = 32;
   const c = s.getContext('2d')!;
   const g = c.createRadialGradient(16, 16, 0, 16, 16, 16);
-  g.addColorStop(0, 'rgba(255,242,222,1)');
-  g.addColorStop(0.35, 'rgba(255,236,205,0.45)');
-  g.addColorStop(1, 'rgba(255,232,200,0)');
+  g.addColorStop(0, tint[0]);
+  g.addColorStop(0.35, tint[1]);
+  g.addColorStop(1, tint[2]);
   c.fillStyle = g;
   c.fillRect(0, 0, 32, 32);
   return s;
+}
+
+/** 主题切换:重新生成对应色调的粒子精灵 */
+export function setAmbientTheme(theme: AmbientTheme): void {
+  currentTheme = theme;
+  sprite = makeSprite(THEME_TINTS[theme]);
 }
 
 function resize() {
@@ -83,31 +103,28 @@ function tick(t: number) {
   const dt = Math.min(32, t - lastT) / 16.67;
   lastT = t;
 
-  // 鼠标平滑跟随
-  mx += (tmx - mx) * 0.06;
-  my += (tmy - my) * 0.06;
+  // 鼠标平滑跟随(更柔,避免背景跟随时抖动)
+  mx += (tmx - mx) * 0.05;
+  my += (tmy - my) * 0.05;
   const px = (mx / W - 0.5) * 2; // -1..1
   const py = (my / H - 0.5) * 2;
   // 视差量写入 CSS 变量,供背景图层位移使用
   document.documentElement.style.setProperty('--px', px.toFixed(3));
   document.documentElement.style.setProperty('--py', py.toFixed(3));
 
-  // 光标光晕跟随已移到 mousemove 内,使用实时 tmx/tmy(零延迟)
-  // 此处 mx/my 是 lerp 缓动值,仅用于粒子视差的柔和感,不适合光标(会显得拖滞)
-
   ctx.clearRect(0, 0, W, H);
   const time = t * 0.0005;
   for (const p of particles) {
-    // 风(sin 扰动)+ 上升
-    p.x += (p.vx + Math.sin(time + p.phase) * 0.14) * dt;
+    // 风(sin 扰动,幅度克制)+ 上升
+    p.x += (p.vx + Math.sin(time + p.phase) * 0.08) * dt;
     p.y += p.vy * dt;
 
-    // 鼠标引力(轻微吸引)
+    // 鼠标引力(轻微吸引,范围小、力度柔,避免粒子被"吸过去"的突变)
     const dx = mx - p.x;
     const dy = my - p.y;
     const d2 = dx * dx + dy * dy;
-    if (d2 < 60000 && d2 > 4) {
-      const f = 50 / d2;
+    if (d2 < 16000 && d2 > 4) {
+      const f = 16 / d2;
       p.x += dx * f;
       p.y += dy * f;
     }
@@ -121,7 +138,7 @@ function tick(t: number) {
     else if (p.x > W + 14) p.x = -14;
 
     // 视差位移:近粒子(depth 小)幅度大
-    const par = (1 - p.depth) * 22;
+    const par = (1 - p.depth) * 16;
     const ox = -px * par;
     const oy = -py * par;
 
@@ -140,7 +157,7 @@ function onResize() {
 }
 
 export function initAmbient() {
-  sprite = makeSprite();
+  sprite = makeSprite(THEME_TINTS[currentTheme]);
   resize();
   seed();
   tmx = mx = W / 2;

@@ -347,11 +347,11 @@ body {
 /* 胶片颗粒 */
 .bg-noise {
   z-index: 6;
-  opacity: 0.075;
+  opacity: 0.05;
   background-repeat: repeat;
   background-size: 140px 140px;
   mix-blend-mode: screen;
-  animation: grain 0.45s steps(3) infinite;
+  animation: grain 1.8s steps(4) infinite;
 }
 @keyframes grain {
   0% {
@@ -626,9 +626,194 @@ html[lang='zh'] .brand {
   box-shadow: 0 0 24px rgba(255, 170, 110, 0.18), inset 0 0 12px rgba(255, 170, 110, 0.06);
 }
 
+/* 主题切换按钮(循环:星河 → 雾海 → 极光) */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.theme-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.theme-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(236, 230, 216, 0.32);
+  transition: background 0.45s ease, box-shadow 0.45s ease, transform 0.45s ease;
+}
+.theme-dots i.active {
+  transform: scale(1.3);
+}
+body[data-theme='stardust'] .theme-dots i[data-theme='stardust'],
+body[data-theme='mist'] .theme-dots i[data-theme='mist'],
+body[data-theme='aurora'] .theme-dots i[data-theme='aurora'] {
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber);
+}
+
+/* =====================================================================
+   三种氛围主题 —— 契合「记忆遗忘」的三种意境
+   stardust 星河(默认):深空银河 + 月光 + 暖晕,记忆如星辰散落
+   mist     雾海:冷调浓雾流动,记忆如雾气消散
+   aurora   极光:流动光带 + 星点,记忆如极光流转
+   切换各背景层显隐/调色 + 点缀色调;粒子色调由 ambient.ts 联动
+   ===================================================================== */
+
+/* —— 雾海 Mist:冷青调,浓雾主导 —— */
+body[data-theme='mist'] {
+  --amber: #a8cce4;
+  --amber-deep: #82b4d4;
+}
+body[data-theme='mist'] .bg-stars::before {
+  opacity: 0.28;
+  filter: blur(9px) brightness(0.38) saturate(0.35) hue-rotate(175deg);
+}
+body[data-theme='mist'] .bg-nebula {
+  opacity: 0.08;
+}
+body[data-theme='mist'] .bg-fog {
+  opacity: 0.72;
+  filter: blur(4px) brightness(0.72) contrast(0.98) saturate(0.45) hue-rotate(160deg);
+}
+body[data-theme='mist'] .bg-aurora {
+  opacity: 0.06;
+}
+body[data-theme='mist'] .bg-moonlight {
+  opacity: 0.4;
+  filter: hue-rotate(175deg) brightness(0.85);
+}
+body[data-theme='mist'] .bg-glow {
+  background: radial-gradient(
+    ellipse 60% 52% at 50% 48%,
+    rgba(176, 210, 234, 0.16) 0%,
+    rgba(148, 184, 212, 0.06) 38%,
+    rgba(0, 0, 0, 0) 72%
+  );
+}
+body[data-theme='mist'] .bg-bokeh::before {
+  background: radial-gradient(circle, rgba(150, 200, 240, 0.36), rgba(0, 0, 0, 0) 70%);
+}
+
+/* —— 极光 Aurora:深绿青,流动光带主导 —— */
+body[data-theme='aurora'] {
+  --amber: #76e8b6;
+  --amber-deep: #48c894;
+}
+body[data-theme='aurora'] .bg-stars::before {
+  opacity: 0.5;
+  filter: blur(7px) brightness(0.5) saturate(0.55);
+}
+body[data-theme='aurora'] .bg-nebula {
+  opacity: 0.16;
+}
+body[data-theme='aurora'] .bg-fog {
+  opacity: 0.14;
+}
+body[data-theme='aurora'] .bg-aurora {
+  opacity: 0.66;
+}
+body[data-theme='aurora'] .bg-aurora::before {
+  filter: blur(6px) brightness(0.72) saturate(1.55);
+}
+body[data-theme='aurora'] .bg-moonlight {
+  opacity: 0.28;
+}
+body[data-theme='aurora'] .bg-glow {
+  background: radial-gradient(
+    ellipse 60% 52% at 50% 48%,
+    rgba(120, 238, 186, 0.15) 0%,
+    rgba(96, 210, 158, 0.06) 38%,
+    rgba(0, 0, 0, 0) 72%
+  );
+}
+body[data-theme='aurora'] .bg-bokeh::before {
+  background: radial-gradient(circle, rgba(110, 240, 180, 0.34), rgba(0, 0, 0, 0) 70%);
+}
+body[data-theme='aurora'] .bg-bokeh::after {
+  background: radial-gradient(circle, rgba(150, 190, 255, 0.26), rgba(0, 0, 0, 0) 70%);
+}
+
 /* =====================================================================
    主舞台
    ===================================================================== */
+/* =====================================================================
+   开场进场序列
+   body.revealed 由 main.ts 在字体就绪后注入,触发:
+   - 帷幕揭开(全屏遮罩 opacity→0)
+   - 中心暖光点绽放后消散
+   - 首屏输入框 / 字数 / 按钮错峰升入
+   (hint 保留原有 breathe 呼吸,由帷幕遮/揭呈现,不参与 rise-in)
+   ===================================================================== */
+.entrance-veil {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, #0b0b13 0%, #060609 65%, #000 100%);
+  z-index: 100;
+  pointer-events: none;
+  opacity: 1;
+  /* 独立于字体就绪:页面加载即揭开,避免外文字体加载慢时帷幕遮太久 */
+  animation: veil-lift 1.8s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
+}
+@keyframes veil-lift {
+  to { opacity: 0; }
+}
+
+.entrance-spark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(255, 236, 206, 1);
+  box-shadow:
+    0 0 18px 5px rgba(255, 206, 158, 0.85),
+    0 0 54px 14px rgba(255, 176, 116, 0.42),
+    0 0 120px 30px rgba(255, 156, 96, 0.16);
+  z-index: 101;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  /* 与帷幕同步:加载即绽放,不依赖字体就绪 */
+  animation: spark-bloom 2.4s ease-out 0.4s forwards;
+}
+@keyframes spark-bloom {
+  0% { opacity: 0; transform: scale(0.2); }
+  18% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(10); }
+}
+
+body:not(.revealed) .writing-view > .memory-input,
+body:not(.revealed) .writing-view > .meta-row,
+body:not(.revealed) .writing-view > .submit-btn {
+  opacity: 0;
+}
+body.revealed .writing-view > .memory-input {
+  animation: rise-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.7s both;
+}
+body.revealed .writing-view > .meta-row {
+  animation: rise-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.9s both;
+}
+body.revealed .writing-view > .submit-btn {
+  animation: rise-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) 1.1s both;
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(18px); filter: blur(8px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrance-veil,
+  .entrance-spark { display: none; }
+  body:not(.revealed) .writing-view > .memory-input,
+  body:not(.revealed) .writing-view > .meta-row,
+  body:not(.revealed) .writing-view > .submit-btn { opacity: 1; }
+}
+
 .app {
   position: relative;
   z-index: 10;
@@ -1195,5 +1380,236 @@ html[lang='zh'] .foot-mark {
   }
   * {
     transition-duration: 0.001ms !important;
+  }
+}
+
+/* =====================================================================
+   记忆星层 canvas(封缄记忆化作星,背景层之上、内容之下)
+   ===================================================================== */
+.memory-stars-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 7;
+}
+
+/* =====================================================================
+   正在播放(底部曲名,播放时淡入;点击切下一首)
+   ===================================================================== */
+.now-playing {
+  position: fixed;
+  left: 34px;
+  bottom: 30px;
+  z-index: 14;
+  font-family: var(--font-en);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(236, 230, 216, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  cursor: none;
+  transition: opacity 0.8s ease, color 0.4s ease;
+  white-space: nowrap;
+  user-select: none;
+  transform: translateZ(0);
+}
+.now-playing.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.now-playing.show:hover {
+  color: var(--amber);
+}
+@media (hover: none) {
+  .now-playing {
+    cursor: pointer;
+  }
+}
+html[lang='zh'] .now-playing {
+  font-family: var(--font-zh);
+  letter-spacing: 0.08em;
+}
+
+/* =====================================================================
+   已封缄记忆面板(右侧可收起):每段放下的记忆留存于此
+   ===================================================================== */
+.memory-panel {
+  position: fixed;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 15;
+  display: flex;
+  align-items: flex-start;
+  direction: rtl; /* 让 body 在 toggle 左侧 */
+}
+.memory-panel-toggle {
+  appearance: none;
+  background: rgba(18, 16, 24, 0.55);
+  border: 1px solid rgba(236, 230, 216, 0.18);
+  border-radius: 999px;
+  color: rgba(236, 230, 216, 0.7);
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: none;
+  backdrop-filter: blur(8px);
+  position: relative;
+  flex-shrink: 0;
+  direction: ltr;
+  transition: border-color 0.4s ease, box-shadow 0.4s ease, color 0.4s ease;
+}
+.memory-panel-toggle:hover {
+  border-color: rgba(255, 182, 119, 0.5);
+  box-shadow: 0 0 24px rgba(255, 170, 110, 0.18);
+  color: var(--ink);
+}
+.memory-panel-toggle .mp-star {
+  font-size: 14px;
+  color: var(--amber);
+  line-height: 1;
+  text-shadow: 0 0 8px var(--amber);
+}
+.memory-panel-toggle .mp-count {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 182, 119, 0.92);
+  color: #1a1208;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  font-family: var(--font-en);
+}
+.memory-panel-body {
+  margin-right: 12px;
+  width: 280px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: rgba(14, 12, 20, 0.72);
+  border: 1px solid rgba(236, 230, 216, 0.14);
+  border-radius: 14px;
+  padding: 20px 18px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  direction: ltr;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.memory-panel.collapsed .memory-panel-body {
+  opacity: 0;
+  transform: translateX(24px);
+  pointer-events: none;
+}
+.mp-title {
+  font-family: var(--font-en);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin: 0 0 6px;
+}
+html[lang='zh'] .mp-title {
+  font-family: var(--font-zh);
+  letter-spacing: 0.22em;
+  text-transform: none;
+}
+.mp-sub {
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgba(236, 230, 216, 0.42);
+  margin: 0 0 16px;
+  font-style: italic;
+}
+html[lang='zh'] .mp-sub {
+  font-style: normal;
+  font-family: var(--font-zh);
+}
+.memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ml-item {
+  border-left: 1px solid rgba(236, 230, 216, 0.14);
+  padding: 7px 0 7px 12px;
+  cursor: none;
+  border-radius: 0 6px 6px 0;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+.ml-item:hover {
+  border-left-color: var(--amber);
+  background: rgba(255, 170, 110, 0.05);
+}
+.ml-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ml-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+  flex-shrink: 0;
+}
+.ml-preview {
+  font-size: 12px;
+  color: rgba(236, 230, 216, 0.62);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html[lang='zh'] .ml-preview,
+html[lang='zh'] .ml-full {
+  font-family: var(--font-zh);
+}
+.ml-full {
+  font-size: 12px;
+  line-height: 1.65;
+  color: rgba(236, 230, 216, 0.42);
+  margin-top: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.4s ease, opacity 0.4s ease, margin 0.4s ease;
+}
+.ml-item.open .ml-full {
+  max-height: 240px;
+  opacity: 1;
+  margin-top: 7px;
+}
+
+/* 移动端:面板下移避免遮挡 */
+@media (max-width: 640px) {
+  .memory-panel {
+    right: 14px;
+    top: auto;
+    bottom: 64px;
+    transform: none;
+  }
+  .memory-panel-body {
+    width: 240px;
+  }
+  .now-playing {
+    left: 14px;
+    bottom: 14px;
+    font-size: 10px;
   }
 }

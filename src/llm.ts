@@ -91,9 +91,23 @@ async function callOnce(
   return arr as string[];
 }
 
+/** 判定是否"不可重试"的致命错误——重试无益,直接退化本地算法,避免 SEALING 长时间空等 */
+function isFatal(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.message === 'RATE_LIMITED') return true;
+  if (err.name === 'AbortError') return true; // 超时
+  const m = err.message.match(/^API_ERROR_(\d{3})$/);
+  if (m) {
+    const s = Number(m[1]);
+    // 4xx(鉴权失败 / 请求格式 / 限流)重试无益 —— 端点或 Key 配错时立即退化
+    if (s === 400 || s === 401 || s === 403 || s === 404 || s === 429) return true;
+  }
+  return false;
+}
+
 /**
  * 主入口:生成 7 层退化文本。
- * 内置 12s 超时 + 失败重试 1 次 + 最终 fallback。
+ * 内置 12s 超时 + 致命错误立即退化 + 偶发错误重试 1 次 + 最终 fallback。
  */
 export async function generateStages(memory: string, lang: Lang): Promise<string[]> {
   const demoOn = new URLSearchParams(location.search).has('demo');
@@ -115,13 +129,11 @@ export async function generateStages(memory: string, lang: Lang): Promise<string
   try {
     return await attempt();
   } catch (firstErr) {
-    if (
-      firstErr instanceof Error &&
-      (firstErr.message === 'RATE_LIMITED' || firstErr.name === 'AbortError')
-    ) {
-      console.warn('[Forgetting] rate-limited or timed out → local fallback.', firstErr.message);
+    if (isFatal(firstErr)) {
+      console.warn('[Forgetting] fatal upstream error → local fallback.', firstErr);
       return fallbackStages(memory, lang);
     }
+    // 偶发错误(网络抖动 / 5xx / 空响应 / 校验失败)重试一次
     try {
       return await attempt();
     } catch (secondErr) {

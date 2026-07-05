@@ -8,7 +8,14 @@
 interface Env {
   ZHIPU_API_KEY: string;
   GLM_MODEL?: string;
+  GLM_BASE_URL?: string;
 }
+
+// 智谱 GLM Coding Plan 端点(OpenAI Chat Completion 协议)
+// 参考: https://docs.bigmodel.cn/cn/coding-plan/quick-start
+// ⚠ Coding Plan Key 与普通平台 Key 不通用,务必配套使用同一套端点与 Key
+const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
+const DEFAULT_MODEL = 'glm-4.6';
 
 const WINDOW = 60 * 60 * 1000;
 const LIMIT = 10;
@@ -45,7 +52,8 @@ export const onRequestOptions = async () => json({}, 204);
 export const onRequestPost = async (context: { request: Request; env: Env }): Promise<Response> => {
   const { request, env } = context;
   const KEY = env.ZHIPU_API_KEY;
-  const MODEL = env.GLM_MODEL || 'glm-4-flash';
+  const MODEL = env.GLM_MODEL || DEFAULT_MODEL;
+  const BASE = (env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
   const ip = request.headers.get('cf-connecting-ip') || 'unknown';
   if (!checkRate(ip)) {
@@ -73,7 +81,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const resp = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+    const resp = await fetch(`${BASE}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

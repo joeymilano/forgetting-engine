@@ -8,9 +8,10 @@ import { STAGES, type StageVisual } from './stages';
 import { typewriter } from './typewriter';
 import { generateStages } from './llm';
 import { Weathering, type LayerSpec } from './weathering';
-import { initAmbient } from './ambient';
-import { applyLang, getLang, t, toggleLang } from './i18n';
+import { initAmbient, setAmbientTheme, type AmbientTheme } from './ambient';
+import { applyLang, getLang, t, toggleLang, type Lang } from './i18n';
 import { initMusic } from './music';
+import { initMemoryStars, addMemoryStar } from './memory-stars';
 
 // ---------- DOM ----------
 const app = document.getElementById('app')!;
@@ -284,10 +285,51 @@ function updateCharCount() {
   else if (len === 0 && state === 'WRITING') setState('IDLE');
 }
 
+// ---------- 封缄记忆:每段放下的记忆化作星 + 留存面板 ----------
+const sealedMemories: { preview: string; full: string; lang: Lang }[] = [];
+let lastMemory = '';
+let lastMemoryLang: Lang = 'en';
+
+function memoryPreview(s: string): string {
+  const clean = s.replace(/\s+/g, ' ').trim();
+  return clean.length > 42 ? clean.slice(0, 42) + '…' : clean;
+}
+
+function renderMemoryList(): void {
+  const ul = document.getElementById('memory-list');
+  const count = document.getElementById('mp-count');
+  if (count) count.textContent = String(sealedMemories.length);
+  if (!ul) return;
+  ul.innerHTML = '';
+  sealedMemories
+    .slice()
+    .reverse()
+    .forEach((m) => {
+      const li = document.createElement('li');
+      li.className = 'ml-item';
+      const head = document.createElement('div');
+      head.className = 'ml-head';
+      const dot = document.createElement('span');
+      dot.className = 'ml-dot';
+      const prev = document.createElement('span');
+      prev.className = 'ml-preview';
+      prev.textContent = m.preview;
+      head.append(dot, prev);
+      const full = document.createElement('div');
+      full.className = 'ml-full';
+      full.textContent = m.full;
+      li.append(head, full);
+      li.addEventListener('click', () => li.classList.toggle('open'));
+      ul.appendChild(li);
+    });
+}
+
 // ---------- SEALING ----------
 async function enterSealing() {
   setState('SEALING');
   const memory = memoryInput.value.trim();
+  lastMemory = memory;
+  lastMemoryLang = getLang();
   submitBtn.disabled = true;
 
   // writing 淡出
@@ -385,6 +427,15 @@ async function enterEpilogue() {
   // 第 7 层文字完全粒子化飘散,不再浮现新文字
   await weathering.disperseOnly(fromSpec);
 
+  // 这段记忆已彻底放下 → 化作一颗星,留存于面板(累积,reset 不清除)
+  sealedMemories.push({
+    preview: memoryPreview(lastMemory),
+    full: lastMemory,
+    lang: lastMemoryLang,
+  });
+  addMemoryStar();
+  renderMemoryList();
+
   // 3 秒静默后浮现系统低语
   epilogueTimers.push(
     setTimeout(() => {
@@ -456,6 +507,39 @@ resetLink.addEventListener('click', (e) => {
   reset();
 });
 
+// ---------- 氛围主题(星河 / 雾海 / 极光)----------
+const THEMES: AmbientTheme[] = ['stardust', 'mist', 'aurora'];
+const THEME_KEY = 'fe-theme';
+
+function detectTheme(): AmbientTheme {
+  try {
+    const s = localStorage.getItem(THEME_KEY);
+    if (s === 'stardust' || s === 'mist' || s === 'aurora') return s;
+  } catch {
+    /* 无 localStorage 权限 → 默认星河 */
+  }
+  return 'stardust';
+}
+
+function applyTheme(theme: AmbientTheme): void {
+  document.body.dataset.theme = theme;
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    /* 静默 */
+  }
+  setAmbientTheme(theme); // 粒子色调联动
+  document.querySelectorAll<HTMLElement>('.theme-dots i').forEach((el) => {
+    el.classList.toggle('active', el.dataset.theme === theme);
+  });
+}
+
+function cycleTheme(): void {
+  const cur = (document.body.dataset.theme as AmbientTheme) || 'stardust';
+  const idx = THEMES.indexOf(cur);
+  applyTheme(THEMES[(idx + 1) % THEMES.length]);
+}
+
 // ---------- 启动 ----------
 function init() {
   buildNoise();
@@ -466,6 +550,20 @@ function init() {
 
   initAmbient();
   initMusic();
+  initMemoryStars();
+
+  // 已封缄记忆面板:展开 / 收起
+  const mpToggle = document.getElementById('memory-panel-toggle');
+  mpToggle?.addEventListener('click', () => {
+    const panel = document.getElementById('memory-panel');
+    const collapsed = panel?.classList.toggle('collapsed');
+    mpToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  });
+
+  // 氛围主题(星河 / 雾海 / 极光):默认星河,localStorage 记忆
+  const themeToggle = document.getElementById('theme-toggle');
+  themeToggle?.addEventListener('click', cycleTheme);
+  applyTheme(detectTheme());
 
   // 语言切换:切换后若正处于某阶段,按新字体度量重排当前层
   const langToggle = document.getElementById('lang-toggle');
@@ -479,7 +577,10 @@ function init() {
   }
 
   // 字体就绪后才显示正文,避免 FOUT 破坏氛围
-  const reveal = () => app.classList.remove('is-hidden');
+  const reveal = () => {
+    document.body.classList.add('revealed'); // 触发开场帷幕揭开 + 中心光点 + 内容错峰升入
+    app.classList.remove('is-hidden');
+  };
   if (document.fonts && document.fonts.ready) {
     // 显式触发关键字体加载,确保 canvas 测量准确
     const loadEn = document.fonts.load?.('400 23px "Cormorant Garamond"');

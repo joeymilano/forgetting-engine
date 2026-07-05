@@ -36,7 +36,10 @@
 
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body>
+  <body data-theme="stardust">
+    <!-- 开场帷幕 + 中心光点(body.revealed 后揭开/绽放) -->
+    <div class="entrance-veil" aria-hidden="true"></div>
+    <div class="entrance-spark" aria-hidden="true"></div>
     <!-- ===== 沉浸式背景层(由底到顶,视差 + 呼吸 + 流动) ===== -->
     <div class="bg-layer bg-stars" aria-hidden="true"></div>
     <div class="bg-layer bg-nebula" aria-hidden="true"></div>
@@ -45,6 +48,8 @@
     <div class="bg-layer bg-moonlight" aria-hidden="true"></div>
     <div class="bg-layer bg-glow" aria-hidden="true"></div>
     <canvas id="ambient-canvas" class="ambient-canvas" aria-hidden="true"></canvas>
+    <!-- 记忆星层:每段封缄的记忆化作一颗星,缓慢淡入并驻留 -->
+    <canvas id="memory-stars-canvas" class="memory-stars-canvas" aria-hidden="true"></canvas>
     <div class="bg-layer bg-bokeh" aria-hidden="true"></div>
     <div class="bg-layer bg-vignette" aria-hidden="true"></div>
     <div id="noise-layer" class="bg-layer bg-noise" aria-hidden="true"></div>
@@ -72,6 +77,20 @@
 
     <!-- ===== 右上控件:语言切换 + 音乐 ===== -->
     <div class="controls">
+      <button
+        id="theme-toggle"
+        class="ctrl-btn theme-toggle"
+        type="button"
+        aria-label="Switch ambient theme"
+        title="Switch ambient theme"
+      >
+        <span class="theme-dots" aria-hidden="true">
+          <i data-theme="stardust"></i>
+          <i data-theme="mist"></i>
+          <i data-theme="aurora"></i>
+        </span>
+      </button>
+
       <button
         id="lang-toggle"
         class="ctrl-btn lang-toggle"
@@ -160,10 +179,32 @@
     <!-- 右侧进度:7 道竖向刻度,走过的逐渐熄灭 -->
     <aside id="progress" class="progress" aria-hidden="true"></aside>
 
+    <!-- 已封缄记忆面板:每段被放下的记忆在此留存痕迹(可收起) -->
+    <aside id="memory-panel" class="memory-panel collapsed" aria-label="Sealed memories">
+      <button
+        id="memory-panel-toggle"
+        class="memory-panel-toggle"
+        type="button"
+        aria-label="Toggle sealed memories"
+        aria-expanded="false"
+      >
+        <span class="mp-star" aria-hidden="true">✦</span>
+        <span class="mp-count" id="mp-count">0</span>
+      </button>
+      <div class="memory-panel-body">
+        <p class="mp-title" data-i18n="memoriesTitle">Sealed Memories</p>
+        <p class="mp-sub" data-i18n="memoriesSub">What you let go remains here, as light.</p>
+        <ul id="memory-list" class="memory-list"></ul>
+      </div>
+    </aside>
+
     <!-- 底部细铭文 -->
     <footer class="foot-mark" aria-hidden="true">
       <span data-i18n="footmark">A machine that remembers how to forget</span>
     </footer>
+
+    <!-- 正在播放(氛围音乐曲名,播放时淡入) -->
+    <div id="now-playing" class="now-playing" aria-hidden="true"></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
