@@ -1,0 +1,457 @@
+/* =====================================================================
+   遗忘引擎 · The Forgetting Engine
+   单文件 CSS。主调:背景 #0d0d0f,文字 #e8e4da(暖白纸感)。
+   全程无导航、无 logo、无 spinner。任何时刻可点元素 ≤ 1。
+   ===================================================================== */
+
+:root {
+  --bg: #0d0d0f;
+  --ink: #e8e4da;
+  --ink-dim: #a8a49c;
+  --ink-faint: rgba(232, 228, 218, 0.3);
+  --line: rgba(232, 228, 218, 0.25);
+  --font: 'LXGW WenKai', 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC',
+    'PingFang SC', serif;
+  --max-w: 560px;
+  --font-size: 20px;
+  --line-height: 2.1;
+
+  /* 当前阶段视觉变量(由 JS 切换) */
+  --ls: 0.02em;
+  --blur: 0px;
+  --op: 1;
+  --ws: normal;
+  --fs-scale: 1;
+  --lh: 2.1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* hidden 属性必须真的隐藏 —— 防止 display 覆盖导致全屏遮挡层拦截点击 */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: relative;
+}
+
+::selection {
+  background: rgba(232, 228, 218, 0.18);
+  color: var(--ink);
+}
+
+/* ----- 噪点氛围层(非每帧重绘,用 dataURL 平铺 + steps 位移) ----- */
+.noise-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.05;
+  background-repeat: repeat;
+  background-size: 120px 120px;
+  animation: grain 0.4s steps(2) infinite;
+  mix-blend-mode: screen;
+}
+
+@keyframes grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(-8px, 6px);
+  }
+}
+
+/* ----- 粒子 canvas:全屏覆盖,在文字之上、按钮之下 ----- */
+.particle-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ----- 主舞台容器 ----- */
+.app {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 28px;
+  transition: opacity 1.2s ease;
+}
+
+.app.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 每个 view 居中、最大宽度限制 */
+.writing-view,
+.epilogue-view {
+  width: 100%;
+  max-width: var(--max-w);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  animation: view-in 0.9s ease both;
+}
+
+/* stage-view 全屏:文字精确居中,按钮固定底部 —— 与粒子采样坐标系对齐 */
+.stage-view {
+  position: fixed;
+  inset: 0;
+  display: block;
+  animation: view-in 0.9s ease both;
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ----- IDLE 呼吸文案 ----- */
+.hint {
+  font-size: 17px;
+  line-height: 2;
+  text-align: center;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.breathe {
+  animation: breathe 5.5s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* ----- textarea:透明、无边框、一条底部虚线 ----- */
+.memory-input {
+  width: 100%;
+  min-height: 150px;
+  resize: none;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--line);
+  outline: none;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 12px 4px 18px;
+  caret-color: var(--ink);
+  transition: border-image 0.4s ease, border-bottom-style 0.4s ease;
+}
+
+.memory-input::placeholder {
+  color: rgba(232, 228, 218, 0.35);
+  font-style: italic;
+}
+
+.memory-input:focus {
+  border-bottom: 1px solid rgba(232, 228, 218, 0.45);
+}
+
+.meta-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  min-height: 1em;
+}
+
+.char-count {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: rgba(232, 228, 218, 0.4);
+  text-transform: uppercase;
+  transition: color 0.3s ease;
+}
+
+.char-count.ok {
+  color: rgba(232, 228, 218, 0.7);
+}
+
+.char-count.bad {
+  color: rgba(232, 228, 218, 0.35);
+}
+
+/* ----- 圆形/胶囊按钮:1px 描边、透明底 ----- */
+.round-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--ink-faint);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  padding: 13px 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.4s ease, border-color 0.4s ease, transform 0.4s ease,
+    color 0.4s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.round-btn:hover:not(:disabled) {
+  opacity: 1;
+  border-color: rgba(232, 228, 218, 0.65);
+}
+
+.round-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.round-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: rgba(232, 228, 218, 0.15);
+}
+
+/* ----- 中央舞台文字 ----- */
+.stage-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 56px));
+  text-align: center;
+  white-space: pre; /* 换行由 JS 插入 \n 控制,保证与 canvas 采样对齐 */
+  color: var(--ink);
+  font-size: calc(var(--font-size) * var(--fs-scale));
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+  word-spacing: var(--ws);
+  opacity: var(--op);
+  filter: blur(var(--blur));
+  margin: 0;
+  transition: letter-spacing 1.2s ease, filter 1.2s ease, opacity 1.2s ease,
+    word-spacing 1.2s ease, font-size 1.2s ease, line-height 1.2s ease,
+    color 1.2s ease;
+  will-change: opacity, filter, transform;
+}
+
+/* 各阶段额外效果 —— 通过 data-stage 属性切换 */
+.stage-text[data-stage='2'] .blur-name {
+  opacity: 0.55;
+  transition: opacity 1.2s ease;
+}
+
+.stage-text[data-stage='3'] {
+  color: #a8a49c;
+}
+
+/* 第 4 阶段:随机字符微偏移。span.loose-char 由 JS 包裹 */
+.stage-text[data-stage='4'] .loose-char {
+  display: inline-block;
+  transform: translateY(var(--dy, 0)) rotate(var(--rot, 0deg));
+  transition: transform 1.2s ease;
+}
+
+/* 第 5 阶段:碎片随机垂直偏移。span.fragment 由 JS 包裹 */
+.stage-text[data-stage='5'] .fragment {
+  display: inline-block;
+  transform: translateY(var(--fy, 0));
+  transition: transform 1.2s ease;
+}
+
+.stage-foot {
+  position: absolute;
+  bottom: 16vh;
+  left: 0;
+  right: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-line {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  color: rgba(232, 228, 218, 0.45);
+  margin: 0;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* ----- EPILOGUE ----- */
+.epilogue-view {
+  gap: 28px;
+}
+
+.epilogue-primary {
+  font-size: 18px;
+  line-height: 2.1;
+  text-align: center;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  opacity: 0;
+  margin: 0;
+}
+
+.epilogue-secondary {
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  color: rgba(232, 228, 218, 0.5);
+  opacity: 0;
+  margin: 0;
+  text-align: center;
+}
+
+.epilogue-primary.shown {
+  animation: fade-in-slow 4s ease both;
+}
+
+.epilogue-secondary.shown {
+  animation: fade-in-slow 4s ease both;
+}
+
+@keyframes fade-in-slow {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+}
+
+.reset-link {
+  margin-top: 18px;
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  color: rgba(232, 228, 218, 0.55);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(232, 228, 218, 0.2);
+  padding-bottom: 3px;
+  transition: color 0.4s ease, border-color 0.4s ease;
+}
+
+.reset-link:hover {
+  color: var(--ink);
+  border-color: rgba(232, 228, 218, 0.5);
+}
+
+/* ----- 右侧进度点:走过的逐渐熄灭 ----- */
+.progress {
+  position: fixed;
+  top: 50%;
+  right: 26px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+}
+
+.progress.active {
+  opacity: 1;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(232, 228, 218, 0.12);
+  transition: background 1.2s ease, box-shadow 1.2s ease, opacity 1.2s ease;
+}
+
+.dot.current {
+  background: rgba(232, 228, 218, 0.85);
+  box-shadow: 0 0 6px rgba(232, 228, 218, 0.4);
+}
+
+.dot.passed {
+  background: rgba(232, 228, 218, 0.04);
+  opacity: 0.3;
+}
+
+/* ----- 状态级辅助:淡出 ----- */
+.fading-out {
+  opacity: 0 !important;
+  transition: opacity 0.6s ease !important;
+}
+
+/* ----- 响应式:移动端 ----- */
+@media (max-width: 768px) {
+  :root {
+    --font-size: 17px;
+  }
+  .app {
+    padding: 28px 28px;
+  }
+  .hint {
+    font-size: 15px;
+  }
+  .progress {
+    right: 16px;
+  }
+  .round-btn {
+    font-size: 14px;
+    padding: 12px 26px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app {
+    padding: 24px 22px;
+  }
+}
+
+/* 减弱动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .breathe,
+  .noise-layer {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.001ms !important;
+  }
+}

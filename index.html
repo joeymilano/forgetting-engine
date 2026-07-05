@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>遗忘引擎 · The Forgetting Engine</title>
+    <meta
+      name="description"
+      content="写下一段想放下的记忆。它不会被保存,只会被遗忘。"
+    />
+    <meta name="theme-color" content="#0d0d0f" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- 字体:霞鹜文楷 LXGW WenKai,免费可商用,手写纸感 -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- 常驻氛围层:极淡噪点(胶片颗粒感) -->
+    <div id="noise-layer" class="noise-layer" aria-hidden="true"></div>
+    <!-- 文字风化粒子层:全屏覆盖,pointer-events:none -->
+    <canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+
+    <!-- 主舞台 -->
+    <main id="app" class="app is-hidden" data-state="IDLE">
+      <!-- IDLE/WRITING 视图 -->
+      <section class="writing-view" data-view="writing">
+        <p class="hint breathe">写下一段你想放下的记忆。<br />它不会被保存,只会被遗忘。</p>
+        <textarea
+          id="memory-input"
+          class="memory-input"
+          placeholder="从这里开始……"
+          maxlength="300"
+          minlength="30"
+          spellcheck="false"
+          autocomplete="off"
+        ></textarea>
+        <div class="meta-row">
+          <span id="char-count" class="char-count">0 / 300</span>
+        </div>
+        <button id="submit-btn" class="round-btn" type="button" disabled>
+          交给遗忘引擎
+        </button>
+      </section>
+
+      <!-- SEALING / STAGE 视图(共享中央舞台) -->
+      <section class="stage-view" data-view="stage" hidden>
+        <div id="stage-text" class="stage-text" data-stage="0"></div>
+        <div class="stage-foot">
+          <p id="loading-line" class="loading-line" hidden></p>
+          <button id="stage-btn" class="round-btn stage-btn" type="button" hidden></button>
+        </div>
+      </section>
+
+      <!-- EPILOGUE 视图 -->
+      <section class="epilogue-view" data-view="epilogue" hidden>
+        <p id="epilogue-primary" class="epilogue-primary"></p>
+        <p id="epilogue-secondary" class="epilogue-secondary"></p>
+        <a href="#" id="reset-link" class="reset-link" hidden>再放下一段</a>
+      </section>
+    </main>
+
+    <!-- 右侧进度点:7 个圆点,走过的逐渐熄灭 -->
+    <aside id="progress" class="progress" aria-hidden="true"></aside>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
