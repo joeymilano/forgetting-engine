@@ -194,12 +194,16 @@ export function initOnboarding(): OnboardingController {
       : replay;
     render();
     if (showDialog(dialog) === 'fallback') enableFallbackModal();
+    // <dialog>.showModal() 进入浏览器顶层,凌驾一切 z-index。
+    // 自定义光标在普通层会被盖住 → 标记开启态,由 CSS 恢复系统光标。
+    document.documentElement.classList.add('guide-open');
   };
 
   const close = (): void => {
     if (!dialog || !isOpen()) return;
     hideDialog(dialog);
     disableFallbackModal();
+    document.documentElement.classList.remove('guide-open');
     restoreTarget?.focus();
     restoreTarget = null;
   };

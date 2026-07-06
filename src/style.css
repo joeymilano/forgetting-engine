@@ -88,6 +88,23 @@ html:not(.js-ready) *::after {
   cursor: auto !important;
 }
 
+/* 引导弹窗用 <dialog>.showModal() 进入浏览器「顶层」,凌驾一切 z-index,
+   自定义 #cursor-glow 在普通层永远被盖住(看不到指针)。
+   弹窗打开期间恢复系统光标、淡出光晕,保证弹窗内始终看得到指针。 */
+html.js-ready.guide-open,
+html.js-ready.guide-open * {
+  cursor: auto;
+}
+html.js-ready.guide-open button,
+html.js-ready.guide-open a,
+html.js-ready.guide-open label,
+html.js-ready.guide-open [role='button'] {
+  cursor: pointer;
+}
+html.js-ready.guide-open .cursor-glow {
+  opacity: 0;
+}
+
 /* 触屏设备:恢复系统光标 */
 @media (hover: none) {
   html,
