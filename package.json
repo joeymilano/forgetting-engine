@@ -9,6 +9,8 @@
     "dev:server": "node server.mjs",
     "start": "node server.mjs & vite",
     "build": "tsc --noEmit && vite build",
+    "test": "npm run build && node --test",
+    "deploy": "npm test && npx wrangler pages deploy dist --project-name forgetting-engine",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },

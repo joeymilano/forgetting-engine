@@ -71,6 +71,10 @@ http://localhost:5173/?demo=1
 5. 部署。`functions/api/forget.ts` 自动成为边缘端点 `/api/forget`;
    `public/_redirects` 把所有非 `/api/`、非静态资源路径回退到 `index.html`。
 
+仓库内的 `wrangler.jsonc` 会把 Pages 发布目录固定为 `dist`。如果使用 Wrangler
+直接发布,请运行 `npm run deploy`;不要运行 `wrangler pages deploy .`,否则会把
+TypeScript 源码当成网站发布,页面可见但所有交互都不会启动。
+
 > Key 只存在于 Cloudflare 环境变量,前端代码与仓库中均无 Key。
 >
 > 也可用 Vercel 部署(`api/forget.ts` + `vercel.json` 已就绪),两者逻辑等价。
