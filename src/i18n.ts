@@ -23,6 +23,15 @@ export interface Strings {
   themeNames: { stardust: string; mist: string; aurora: string };
   memoriesTitle: string;
   memoriesSub: string;
+  musicPlayer: string;
+  musicToggle: string;
+  musicClose: string;
+  musicPrev: string;
+  musicPlay: string;
+  musicPause: string;
+  musicNext: string;
+  musicCredits: string;
+  musicUnavailable: string;
 }
 
 const STRINGS: Record<Lang, Strings> = {
@@ -56,6 +65,15 @@ const STRINGS: Record<Lang, Strings> = {
     themeNames: { stardust: 'Stardust', mist: 'Mist', aurora: 'Aurora' },
     memoriesTitle: 'Sealed Memories',
     memoriesSub: 'What you let go remains here, as light.',
+    musicPlayer: 'Memory score player',
+    musicToggle: 'Open music player',
+    musicClose: 'Close music player',
+    musicPrev: 'Previous track',
+    musicPlay: 'Play music',
+    musicPause: 'Pause music',
+    musicNext: 'Next track',
+    musicCredits: 'Music credits',
+    musicUnavailable: 'Music is unavailable right now. You may try again.',
   },
   zh: {
     brand: '遗 忘 引 擎',
@@ -73,6 +91,15 @@ const STRINGS: Record<Lang, Strings> = {
     themeNames: { stardust: '星河', mist: '雾海', aurora: '极光' },
     memoriesTitle: '已封缄的记忆',
     memoriesSub: '你放下的,在此化作光。',
+    musicPlayer: '记忆配乐播放器',
+    musicToggle: '打开音乐播放器',
+    musicClose: '关闭音乐播放器',
+    musicPrev: '上一首',
+    musicPlay: '播放音乐',
+    musicPause: '暂停音乐',
+    musicNext: '下一首',
+    musicCredits: '音乐鸣谢',
+    musicUnavailable: '音乐暂时无法播放，你可以稍后重试。',
   },
 };
 
@@ -125,6 +152,7 @@ export function applyLang(lang: Lang): void {
   setText('[data-i18n="footmark"]', s.footmark);
   setText('[data-i18n="memoriesTitle"]', s.memoriesTitle);
   setText('[data-i18n="memoriesSub"]', s.memoriesSub);
+  setText('[data-i18n="musicCredits"]', s.musicCredits);
 
   // hint 允许 <br />
   doc.querySelectorAll<HTMLElement>('[data-i18n="hint"]').forEach((el) => {
@@ -164,6 +192,8 @@ export function applyLang(lang: Lang): void {
     );
     if (idx >= 1 && idx <= 7) stageBtnLabel.textContent = s.stageButtons[idx - 1];
   }
+
+  window.dispatchEvent(new CustomEvent('fe:langchange', { detail: { lang } }));
 }
 
 export function toggleLang(): Lang {

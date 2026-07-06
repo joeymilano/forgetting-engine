@@ -1,206 +1,370 @@
-/* =====================================================================
-   music.ts — 氛围 BGM 控制器(多曲轮换)
-   曲目(均 CC-BY 4.0,Kevin MacLeod / incompetech.com):
-     1. Constance       — 钢琴 + 弦乐,温暖怀旧(开场)
-     2. Lamentation     — 弦乐深情,情感厚重
-     3. Long Note Four  — 氛围 drone,空灵绵延(长尾)
-   - 顺序自动轮换:每首自然结束 → 淡入下一首 → 循环
-   - 底部 now-playing 显示曲名,点击切下一首
-   - 浏览器自动播放策略:首次任意用户交互后温和自动淡入
-   ===================================================================== */
-
-import { getLang } from './i18n';
+import type { TrackId } from './experience'
+import { getLang, t } from './i18n'
+import {
+  createMusicState,
+  nextTrack,
+  previousTrack,
+  suggestTrack,
+  type MusicState,
+} from './music-state'
 
 interface Track {
-  src: string;
-  name: string;
-  author: string;
+  id: TrackId
+  src: string
+  title: string
+  artist: string
+  mood: { en: string; zh: string }
 }
 
 const TRACKS: Track[] = [
-  { src: '/bgm-3.mp3', name: 'Constance', author: 'Kevin MacLeod' },
-  { src: '/bgm-1.mp3', name: 'Lamentation', author: 'Kevin MacLeod' },
-  { src: '/bgm-2.mp3', name: 'Long Note Four', author: 'Kevin MacLeod' },
-];
+  {
+    id: 'looking-back',
+    src: '/music/a-kind-of-hope.mp3',
+    title: 'A Kind Of Hope',
+    artist: 'Scott Buckley',
+    mood: {
+      en: 'Looking Back · Like an old photograph slowly developing',
+      zh: '回望 · 像旧照片慢慢显影',
+    },
+  },
+  {
+    id: 'rain-at-dusk',
+    src: '/music/the-long-dark.mp3',
+    title: 'The Long Dark',
+    artist: 'Scott Buckley',
+    mood: {
+      en: 'Rain at Dusk · Let the rain carry what words cannot',
+      zh: '暮雨 · 让雨带走言语未尽之处',
+    },
+  },
+  {
+    id: 'far-shore',
+    src: '/music/at-the-end-of-all-things.mp3',
+    title: 'At The End Of All Things',
+    artist: 'Scott Buckley',
+    mood: {
+      en: 'The Far Shore · Where the weight finally thins',
+      zh: '彼岸 · 重量终于在远处变轻',
+    },
+  },
+]
 
-const TARGET_VOLUME = 0.42;
-const FADE_STEP = 50; // ms
-const FADE_FRAMES = 50; // ~2.5s 淡入 / 淡出
+const STORAGE_KEY = 'fe-music-track'
+const TARGET_VOLUME = 0.36
+const FADE_STEPS = 4
+const FADE_INTERVAL = 25
 
-let audio: HTMLAudioElement | null = null;
-let toggleBtn: HTMLButtonElement | null = null;
-let nowEl: HTMLElement | null = null;
-let trackIdx = 0;
-let playing = false;
-let firstInteractHandled = false;
-let crossfading = false;
+export interface AudioPort {
+  load(src: string): Promise<boolean>
+  play(): Promise<boolean>
+  pause(): void
+  setVolume(volume: number): void
+  onEnded(handler: () => void): void
+}
+
+export interface MusicController {
+  applySuggestedTrack(id: TrackId): void
+  next(): Promise<void>
+  previous(): Promise<void>
+  toggle(): Promise<void>
+  getState(): MusicState
+}
+
+class HtmlAudioPort implements AudioPort {
+  private readonly audio = new Audio()
+
+  constructor() {
+    this.audio.preload = 'metadata'
+  }
+
+  async load(src: string): Promise<boolean> {
+    if (this.audio.getAttribute('src') === src && this.audio.readyState >= 1) {
+      return true
+    }
+
+    // Set the source synchronously inside the click task. Waiting for a
+    // metadata event here would consume the browser's transient user gesture
+    // before play() runs; playback itself reports an unavailable source.
+    this.audio.src = src
+    this.audio.load()
+    return true
+  }
+
+  async play(): Promise<boolean> {
+    try {
+      await this.audio.play()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  pause(): void {
+    this.audio.pause()
+  }
+
+  setVolume(volume: number): void {
+    this.audio.volume = Math.max(0, Math.min(1, volume))
+  }
+
+  onEnded(handler: () => void): void {
+    this.audio.addEventListener('ended', handler)
+  }
+}
+
+function readStoredIndex(): number {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    const index = TRACKS.findIndex((track) => track.id === stored)
+    return index >= 0 ? index : 0
+  } catch {
+    return 0
+  }
+}
+
+function persistTrack(index: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, TRACKS[index]?.id ?? TRACKS[0].id)
+  } catch {
+    // Storage can be unavailable in private or hardened browsing contexts.
+  }
+}
 
 function wait(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-function ensureAudio(): HTMLAudioElement {
-  if (!audio) {
-    audio = new Audio();
-    audio.volume = 0;
-    audio.preload = 'auto';
-    audio.addEventListener('ended', () => {
-      // 自然结束 → 淡入下一首(音频已停,无需淡出)
-      if (!crossfading) void nextTrack(true);
-    });
+export function createMusicPlayer(
+  audioPort: AudioPort = new HtmlAudioPort(),
+): MusicController {
+  const restoredIndex = readStoredIndex()
+  let state: MusicState = {
+    ...createMusicState(restoredIndex),
+    manuallySelected: restoredIndex !== 0,
   }
-  return audio;
-}
+  let operation = 0
 
-function currentTrack(): Track {
-  return TRACKS[trackIdx];
-}
+  const panel = document.getElementById('music-player') as HTMLElement | null
+  const panelToggle = document.getElementById(
+    'music-toggle',
+  ) as HTMLButtonElement | null
+  const close = document.getElementById(
+    'music-close',
+  ) as HTMLButtonElement | null
+  const play = document.getElementById(
+    'music-play',
+  ) as HTMLButtonElement | null
+  const previous = document.getElementById(
+    'music-prev',
+  ) as HTMLButtonElement | null
+  const next = document.getElementById(
+    'music-next',
+  ) as HTMLButtonElement | null
+  const title = document.getElementById('music-track-title')
+  const mood = document.getElementById('music-track-mood')
+  const artist = document.getElementById('music-track-artist')
+  const position = document.getElementById('music-track-position')
+  const error = document.getElementById('music-error')
 
-function renderNowPlaying(): void {
-  if (!nowEl) return;
-  const t = currentTrack();
-  nowEl.textContent = `♪  ${t.name}  ·  ${t.author}`;
-  const zh = getLang() === 'zh';
-  nowEl.title = zh ? '点击切换下一首' : 'Click for next track';
-}
-
-function syncBtnState(): void {
-  if (!toggleBtn) return;
-  toggleBtn.classList.toggle('is-on', playing);
-  toggleBtn.classList.toggle('is-off', !playing);
-  const zh = getLang() === 'zh';
-  toggleBtn.setAttribute(
-    'aria-label',
-    playing
-      ? zh
-        ? '暂停氛围音乐'
-        : 'Pause ambient music'
-      : zh
-        ? '播放氛围音乐'
-        : 'Play ambient music',
-  );
-  if (nowEl) {
-    nowEl.classList.toggle('show', playing);
-    nowEl.setAttribute('aria-hidden', playing ? 'false' : 'true');
-  }
-}
-
-async function loadTrack(t: Track): Promise<boolean> {
-  const a = ensureAudio();
-  const full = location.origin + t.src;
-  if (a.src !== full) a.src = t.src;
-  a.volume = 0;
-  try {
-    await a.play();
-  } catch {
-    return false; // 被浏览器自动播放策略拦截
-  }
-  return true;
-}
-
-async function fadeIn(): Promise<void> {
-  const a = audio;
-  if (!a) return;
-  for (let i = 1; i <= FADE_FRAMES; i++) {
-    if (!playing || !a) return; // 中途被关
-    a.volume = (TARGET_VOLUME * i) / FADE_FRAMES;
-    await wait(FADE_STEP);
-  }
-  if (a) a.volume = TARGET_VOLUME;
-}
-
-function fadeOut(): Promise<void> {
-  return new Promise((resolve) => {
-    const a = audio;
-    if (!a) {
-      resolve();
-      return;
+  const render = () => {
+    const strings = t()
+    const track = TRACKS[state.index] ?? TRACKS[0]
+    if (title) title.textContent = track.title
+    if (mood) mood.textContent = track.mood[getLang()]
+    if (artist) artist.textContent = track.artist
+    if (position) position.textContent = `${state.index + 1} / ${TRACKS.length}`
+    if (play) {
+      play.setAttribute(
+        'aria-label',
+        state.playing ? strings.musicPause : strings.musicPlay,
+      )
+      play.setAttribute(
+        'title',
+        state.playing ? strings.musicPause : strings.musicPlay,
+      )
+      play.dataset.playing = state.playing ? 'true' : 'false'
     }
-    const start = a.volume;
-    let i = 0;
-    const step = () => {
-      i++;
-      if (!a) {
-        resolve();
-        return;
+    if (previous) {
+      previous.setAttribute('aria-label', strings.musicPrev)
+      previous.setAttribute('title', strings.musicPrev)
+    }
+    if (next) {
+      next.setAttribute('aria-label', strings.musicNext)
+      next.setAttribute('title', strings.musicNext)
+    }
+    if (close) {
+      close.setAttribute('aria-label', strings.musicClose)
+      close.setAttribute('title', strings.musicClose)
+    }
+    if (panel) panel.setAttribute('aria-label', strings.musicPlayer)
+    if (panelToggle) {
+      panelToggle.setAttribute('aria-label', strings.musicToggle)
+      panelToggle.setAttribute('title', strings.musicToggle)
+      panelToggle.classList.toggle('is-on', state.playing)
+      panelToggle.classList.toggle('is-off', !state.playing)
+    }
+  }
+
+  const hideError = () => {
+    if (!error) return
+    error.hidden = true
+    error.textContent = ''
+  }
+
+  const showUnavailable = () => {
+    if (!error) return
+    error.hidden = false
+    error.textContent = t().musicUnavailable
+  }
+
+  const fade = async (
+    from: number,
+    to: number,
+    token: number,
+  ): Promise<boolean> => {
+    for (let step = 1; step <= FADE_STEPS; step += 1) {
+      await wait(FADE_INTERVAL)
+      if (token !== operation) return false
+      audioPort.setVolume(from + ((to - from) * step) / FADE_STEPS)
+    }
+    return true
+  }
+
+  const startAvailable = async (token: number): Promise<void> => {
+    const failed = new Set<number>()
+    audioPort.setVolume(0)
+
+    while (failed.size < TRACKS.length && token === operation) {
+      const track = TRACKS[state.index]
+      const loaded = await audioPort.load(track.src)
+      if (token !== operation) return
+      const started = loaded ? await audioPort.play() : false
+      if (token !== operation) {
+        if (started) audioPort.pause()
+        return
       }
-      a.volume = start * (1 - i / FADE_FRAMES);
-      if (i >= FADE_FRAMES) {
-        a.pause();
-        resolve();
-      } else {
-        setTimeout(step, FADE_STEP);
+
+      if (loaded && started) {
+        hideError()
+        state = { ...state, playing: true }
+        render()
+        await fade(0, TARGET_VOLUME, token)
+        return
       }
-    };
-    step();
-  });
-}
 
-async function startPlayback(): Promise<void> {
-  renderNowPlaying();
-  const ok = await loadTrack(currentTrack());
-  if (!ok) {
-    playing = false;
-    syncBtnState();
-    return;
-  }
-  playing = true;
-  syncBtnState();
-  await fadeIn();
-}
+      failed.add(state.index)
+      state = {
+        ...state,
+        index: (state.index + 1) % TRACKS.length,
+        playing: true,
+      }
+      persistTrack(state.index)
+      render()
+    }
 
-/** 切换下一首:natural=true 表示自然结束(直接淡入);false 表示手动(先淡出再淡入) */
-async function nextTrack(natural = false): Promise<void> {
-  if (crossfading) return;
-  crossfading = true;
-  trackIdx = (trackIdx + 1) % TRACKS.length;
-  if (playing && !natural) {
-    await fadeOut();
-  }
-  if (playing || natural) {
-    await startPlayback();
-  }
-  crossfading = false;
-}
-
-async function toggle(): Promise<void> {
-  firstInteractHandled = true; // 手动操作即视为已交互
-  if (playing) {
-    playing = false;
-    syncBtnState();
-    await fadeOut();
-  } else {
-    await startPlayback();
-  }
-}
-
-/** 首次任意用户交互后,温和自动淡入(必须在手势同步上下文内 play) */
-function onFirstInteract(): void {
-  if (firstInteractHandled) return;
-  firstInteractHandled = true;
-  window.removeEventListener('pointerdown', onFirstInteract);
-  window.removeEventListener('keydown', onFirstInteract);
-  if (!playing) void startPlayback();
-}
-
-export function initMusic(): void {
-  toggleBtn = document.getElementById('music-toggle') as HTMLButtonElement | null;
-  nowEl = document.getElementById('now-playing');
-  if (!toggleBtn) return;
-
-  toggleBtn.addEventListener('click', () => {
-    void toggle();
-  });
-
-  // 点击底部曲名 = 切下一首(避免与 play/pause 按钮的双击冲突)
-  if (nowEl) {
-    nowEl.addEventListener('click', () => {
-      if (playing) void nextTrack(false);
-    });
+    if (token === operation) {
+      state = { ...state, playing: false }
+      audioPort.pause()
+      showUnavailable()
+      render()
+    }
   }
 
-  // 监听首次交互以自动播放(满足浏览器自动播放策略)
-  window.addEventListener('pointerdown', onFirstInteract, { passive: true });
-  window.addEventListener('keydown', onFirstInteract);
-  syncBtnState();
+  const changeSelection = async (
+    nextState: MusicState,
+    natural = false,
+  ): Promise<void> => {
+    const wasPlaying = state.playing
+    state = nextState
+    persistTrack(state.index)
+    render()
+    if (!wasPlaying) return
+
+    const token = ++operation
+    if (!natural) {
+      const completed = await fade(TARGET_VOLUME, 0, token)
+      if (!completed) return
+      audioPort.pause()
+    }
+    await startAvailable(token)
+  }
+
+  const controller: MusicController = {
+    applySuggestedTrack(id) {
+      const index = TRACKS.findIndex((track) => track.id === id)
+      if (index < 0) return
+      const suggested = suggestTrack(state, index)
+      if (suggested === state || suggested.index === state.index) return
+      void changeSelection(suggested)
+    },
+
+    async next() {
+      await changeSelection(nextTrack(state))
+    },
+
+    async previous() {
+      await changeSelection(previousTrack(state))
+    },
+
+    async toggle() {
+      hideError()
+      if (state.playing) {
+        state = { ...state, playing: false }
+        const token = ++operation
+        render()
+        await fade(TARGET_VOLUME, 0, token)
+        if (token === operation) audioPort.pause()
+        return
+      }
+
+      state = { ...state, playing: true }
+      const token = ++operation
+      render()
+      await startAvailable(token)
+    },
+
+    getState() {
+      return { ...state }
+    },
+  }
+
+  const setPanelOpen = (open: boolean) => {
+    if (!panel) return
+    panel.hidden = !open
+    panelToggle?.setAttribute('aria-expanded', open ? 'true' : 'false')
+    if (open) play?.focus()
+  }
+
+  panelToggle?.addEventListener('click', () => {
+    setPanelOpen(panel?.hidden ?? false)
+  })
+  close?.addEventListener('click', () => {
+    setPanelOpen(false)
+    panelToggle?.focus()
+  })
+  play?.addEventListener('click', () => {
+    void controller.toggle()
+  })
+  previous?.addEventListener('click', () => {
+    void controller.previous()
+  })
+  next?.addEventListener('click', () => {
+    void controller.next()
+  })
+  window.addEventListener('fe:langchange', render)
+  audioPort.onEnded(() => {
+    if (!state.playing) return
+    const advanced = {
+      ...state,
+      index: (state.index + 1) % TRACKS.length,
+    }
+    void changeSelection(advanced, true)
+  })
+
+  render()
+  return controller
+}
+
+export function initMusic(audioPort?: AudioPort): MusicController {
+  return createMusicPlayer(audioPort)
 }

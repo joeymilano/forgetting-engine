@@ -1,0 +1,267 @@
+// @vitest-environment jsdom
+
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { applyLang } from './i18n'
+import {
+  createMusicPlayer,
+  type AudioPort,
+  type MusicController,
+} from './music'
+
+const fixture = `
+  <button id="music-toggle" aria-expanded="false"></button>
+  <section id="music-player" hidden>
+    <button id="music-close"></button>
+    <p id="music-track-title"></p>
+    <p id="music-track-mood"></p>
+    <p id="music-track-artist"></p>
+    <span id="music-track-position"></span>
+    <button id="music-prev"></button>
+    <button id="music-play"></button>
+    <button id="music-next"></button>
+    <a id="music-credits" data-i18n="musicCredits"></a>
+    <p id="music-error" role="status" hidden></p>
+  </section>
+`
+
+interface FakeAudio extends AudioPort {
+  loads: string[]
+  playCount: number
+  pauseCount: number
+  volumes: number[]
+  end(): void
+}
+
+function fakeAudio(failures: string[] = []): FakeAudio {
+  let ended = () => {}
+  return {
+    loads: [],
+    playCount: 0,
+    pauseCount: 0,
+    volumes: [],
+    async load(src) {
+      this.loads.push(src)
+      return !failures.includes(src)
+    },
+    async play() {
+      this.playCount += 1
+      return true
+    },
+    pause() {
+      this.pauseCount += 1
+    },
+    setVolume(volume) {
+      this.volumes.push(volume)
+    },
+    onEnded(handler) {
+      ended = handler
+    },
+    end() {
+      ended()
+    },
+  }
+}
+
+async function settle(): Promise<void> {
+  await vi.runAllTimersAsync()
+}
+
+describe('music player', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    document.body.innerHTML = fixture
+    const values = new Map<string, string>()
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        clear: () => values.clear(),
+        getItem: (key: string) => values.get(key) ?? null,
+        removeItem: (key: string) => values.delete(key),
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    })
+    localStorage.clear()
+    applyLang('en')
+  })
+
+  it('renders the first title, artist, emotional subtitle, and position', () => {
+    createMusicPlayer(fakeAudio())
+
+    expect(document.querySelector('#music-track-title')?.textContent).toBe(
+      'A Kind Of Hope',
+    )
+    expect(document.querySelector('#music-track-artist')?.textContent).toBe(
+      'Scott Buckley',
+    )
+    expect(document.querySelector('#music-track-mood')?.textContent).toContain(
+      'Looking Back',
+    )
+    expect(document.querySelector('#music-track-position')?.textContent).toBe(
+      '1 / 3',
+    )
+  })
+
+  it('wraps previous and next while paused and marks the choice manual', async () => {
+    const player = createMusicPlayer(fakeAudio())
+
+    await player.previous()
+    expect(player.getState()).toMatchObject({
+      index: 2,
+      playing: false,
+      manuallySelected: true,
+    })
+    expect(document.querySelector('#music-track-title')?.textContent).toBe(
+      'At The End Of All Things',
+    )
+
+    await player.next()
+    expect(player.getState().index).toBe(0)
+  })
+
+  it('does not let a suggested track override a manual choice', async () => {
+    const player = createMusicPlayer(fakeAudio())
+
+    await player.next()
+    player.applySuggestedTrack('far-shore')
+
+    expect(player.getState().index).toBe(1)
+    expect(document.querySelector('#music-track-title')?.textContent).toBe(
+      'The Long Dark',
+    )
+  })
+
+  it('changes a paused selection without starting playback', async () => {
+    const audio = fakeAudio()
+    const player = createMusicPlayer(audio)
+
+    await player.next()
+
+    expect(audio.playCount).toBe(0)
+    expect(audio.loads).toEqual([])
+  })
+
+  it('fades and continues playback when changing a playing track', async () => {
+    const audio = fakeAudio()
+    const player = createMusicPlayer(audio)
+
+    const starting = player.toggle()
+    await settle()
+    await starting
+    const changing = player.next()
+    await settle()
+    await changing
+
+    expect(audio.loads).toEqual([
+      '/music/a-kind-of-hope.mp3',
+      '/music/the-long-dark.mp3',
+    ])
+    expect(audio.playCount).toBe(2)
+    expect(audio.pauseCount).toBeGreaterThan(0)
+    expect(player.getState()).toMatchObject({ index: 1, playing: true })
+  })
+
+  it('advances and loops after natural endings without marking a manual choice', async () => {
+    const audio = fakeAudio()
+    const player = createMusicPlayer(audio)
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    audio.end()
+    await settle()
+
+    expect(player.getState()).toMatchObject({
+      index: 1,
+      playing: true,
+      manuallySelected: false,
+    })
+  })
+
+  it('restores a safe selected track but never persisted playback', async () => {
+    const firstAudio = fakeAudio()
+    const first = createMusicPlayer(firstAudio)
+    await first.next()
+    const starting = first.toggle()
+    await settle()
+    await starting
+
+    document.body.innerHTML = fixture
+    const secondAudio = fakeAudio()
+    const restored = createMusicPlayer(secondAudio)
+
+    expect(restored.getState()).toMatchObject({ index: 1, playing: false })
+    expect(secondAudio.playCount).toBe(0)
+
+    localStorage.setItem('fe-music-track', 'not-a-track')
+    document.body.innerHTML = fixture
+    expect(createMusicPlayer(fakeAudio()).getState().index).toBe(0)
+  })
+
+  it('skips one failed track and plays the next available track', async () => {
+    const audio = fakeAudio(['/music/a-kind-of-hope.mp3'])
+    const player = createMusicPlayer(audio)
+
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    expect(audio.loads).toEqual([
+      '/music/a-kind-of-hope.mp3',
+      '/music/the-long-dark.mp3',
+    ])
+    expect(player.getState()).toMatchObject({ index: 1, playing: true })
+    expect(document.querySelector('#music-error')?.hasAttribute('hidden')).toBe(
+      true,
+    )
+  })
+
+  it('stops after three distinct failures and shows an inline unavailable status', async () => {
+    const audio = fakeAudio([
+      '/music/a-kind-of-hope.mp3',
+      '/music/the-long-dark.mp3',
+      '/music/at-the-end-of-all-things.mp3',
+    ])
+    const player = createMusicPlayer(audio)
+
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    expect(audio.loads).toHaveLength(3)
+    expect(player.getState().playing).toBe(false)
+    expect(document.querySelector('#music-error')?.hasAttribute('hidden')).toBe(
+      false,
+    )
+    expect(document.querySelector('#music-error')?.textContent).toContain(
+      'Music is unavailable',
+    )
+  })
+
+  it('opens from the existing toggle and closes without starting playback', () => {
+    const audio = fakeAudio()
+    createMusicPlayer(audio)
+    const toggle = document.querySelector<HTMLButtonElement>('#music-toggle')!
+    const panel = document.querySelector<HTMLElement>('#music-player')!
+
+    toggle.click()
+    expect(panel.hidden).toBe(false)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(audio.playCount).toBe(0)
+
+    document.querySelector<HTMLButtonElement>('#music-close')!.click()
+    expect(panel.hidden).toBe(true)
+  })
+
+  it('refreshes emotional copy and accessible labels when language changes', () => {
+    createMusicPlayer(fakeAudio())
+
+    applyLang('zh')
+
+    expect(document.querySelector('#music-track-mood')?.textContent).toContain(
+      '回望',
+    )
+    expect(
+      document.querySelector('#music-play')?.getAttribute('aria-label'),
+    ).toBe('播放音乐')
+  })
+})

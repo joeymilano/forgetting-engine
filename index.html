@@ -107,8 +107,10 @@
         id="music-toggle"
         class="ctrl-btn music-toggle is-off"
         type="button"
-        aria-label="Play ambient music"
-        title="Ambient music"
+        aria-label="Open music player"
+        title="Open music player"
+        aria-controls="music-player"
+        aria-expanded="false"
       >
         <svg class="icon-music" viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -203,8 +205,61 @@
       <span data-i18n="footmark">A machine that remembers how to forget</span>
     </footer>
 
-    <!-- 正在播放(氛围音乐曲名,播放时淡入) -->
-    <div id="now-playing" class="now-playing" aria-hidden="true"></div>
+    <section
+      id="music-player"
+      class="music-player"
+      role="dialog"
+      aria-label="Memory score player"
+      aria-modal="false"
+      hidden
+    >
+      <button id="music-close" class="music-close" type="button" aria-label="Close music player">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+
+      <div class="music-copy">
+        <p id="music-track-mood" class="music-track-mood"></p>
+        <div class="music-title-row">
+          <p id="music-track-title" class="music-track-title"></p>
+          <span id="music-track-position" class="music-track-position">1 / 3</span>
+        </div>
+        <p id="music-track-artist" class="music-track-artist"></p>
+      </div>
+
+      <div class="music-actions">
+        <button id="music-prev" type="button" aria-label="Previous track">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 5v14" />
+            <path class="music-icon-fill" d="M18 6l-9 6 9 6z" />
+          </svg>
+        </button>
+        <button id="music-play" class="music-play" type="button" aria-label="Play music">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path class="music-icon-play" d="M8 5l11 7-11 7z" />
+            <path class="music-icon-pause" d="M8 6v12M16 6v12" />
+          </svg>
+        </button>
+        <button id="music-next" type="button" aria-label="Next track">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 5v14" />
+            <path class="music-icon-fill" d="M6 6l9 6-9 6z" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="music-meta">
+        <a
+          id="music-credits"
+          href="/music/CREDITS.md"
+          target="_blank"
+          rel="noreferrer"
+          data-i18n="musicCredits"
+        >Music credits</a>
+        <p id="music-error" class="music-error" role="status" hidden></p>
+      </div>
+    </section>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
