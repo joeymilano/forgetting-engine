@@ -6,6 +6,35 @@
 
 import type { Lang } from './i18n';
 
+function codePointLength(text: string): number {
+  return Array.from(text).length;
+}
+
+function truncateCodePoints(text: string, maxLength: number): string {
+  return Array.from(text).slice(0, Math.max(0, maxLength)).join('');
+}
+
+function normalizeProgression(stages: string[], finalTrace: string): string[] {
+  const finalLength = codePointLength(finalTrace);
+  let first = stages[0] ?? '';
+  const missing = finalLength - codePointLength(first);
+  if (missing > 0) first += truncateCodePoints(finalTrace, missing);
+
+  const normalized = [first];
+  for (let index = 1; index < stages.length - 1; index += 1) {
+    const previous = normalized[index - 1];
+    const previousLength = codePointLength(previous);
+    const maxLength = Math.max(finalLength, previousLength - 1);
+    let current = truncateCodePoints(stages[index], maxLength);
+    if (codePointLength(current) < finalLength) {
+      current = truncateCodePoints(previous, finalLength);
+    }
+    normalized.push(current);
+  }
+  normalized.push(finalTrace);
+  return normalized;
+}
+
 /** 把句子按句末标点切分(保留标点)。兼容中英 */
 function splitSentences(text: string): string[] {
   const parts = text
@@ -48,7 +77,7 @@ function extractWords(text: string, lang: Lang): string[] {
   return cleaned
     .split(' ')
     .map((w) => w.trim())
-    .filter((w) => w.length >= minLen);
+    .filter((w) => codePointLength(w) >= minLen);
 }
 
 /** 从句子里按 keepRatio 删句,保留首句骨架(确定性"随机") */
@@ -79,8 +108,7 @@ export function fallbackStages(memory: string, lang: Lang = 'zh'): string[] {
   const blur = isZh ? blurNamesZh : blurNamesEn;
   const ellipsis4 = isZh ? '……好像……记不清了。' : '…I think…I can barely remember.';
   const defaultWords = isZh ? ['那时', '后来'] : ['then', 'later'];
-  const poem6 = isZh ? '有些事发生过 / 后来轻了' : 'things happened / then they grew light';
-  const trace7 = isZh ? '……' : '…';
+  const clearTrace = isZh ? '……' : '…';
 
   // 第 1 层:删 ~15% 句子
   const s1 = dropSentences(sentences, 0.85).join('');
@@ -90,13 +118,15 @@ export function fallbackStages(memory: string, lang: Lang = 'zh'): string[] {
   const emotionRe = isZh
     ? /(崩溃|心碎|痛哭|撕心|绝望|恨|爱极了|狂喜|愤怒|气愤|悲伤|难过|伤心)/g
     : /\b(devastated|heartbroken|crushed|shattered|furious|agonizing|despair|grief|miserable|ecstatic|desperate|tortured)\b/gi;
-  const s3 = s2.replace(emotionRe, isZh ? '有些波动' : 'something shifted').slice(
-    0,
-    Math.ceil(s2.length * 0.8),
+  const fadedS3 = s2.replace(emotionRe, isZh ? '有些波动' : 'something shifted');
+  const s3 = truncateCodePoints(
+    fadedS3,
+    Math.ceil(codePointLength(s2) * 0.8),
   );
   // 第 4 层:截断到 ~40% + 省略语
   const s4 =
-    s3.slice(0, Math.max(8, Math.ceil(mem.length * 0.4))).trim() + ellipsis4;
+    truncateCodePoints(s3, Math.max(8, Math.ceil(codePointLength(mem) * 0.4))).trim() +
+    ellipsis4;
 
   // 第 5 层:4 个孤立词碎片
   const words = extractWords(mem, lang);
@@ -108,16 +138,15 @@ export function fallbackStages(memory: string, lang: Lang = 'zh'): string[] {
       const idx = hash(words.join('|') + picks.length) % words.length;
       if (!used.has(idx)) {
         used.add(idx);
-        picks.push(words[idx]);
+        picks.push(truncateCodePoints(words[idx], isZh ? 4 : 8));
       }
       guard++;
     }
   }
   const s5 = (picks.length ? picks : defaultWords).join('  ');
 
-  // 第 6 层 / 第 7 层
-  const s6 = poem6;
-  const s7 = trace7;
+  // 第 6 层:最后的清澈痕迹
+  const s6 = clearTrace;
 
-  return [s1, s2, s3, s4, s5, s6, s7];
+  return normalizeProgression([s1, s2, s3, s4, s5, s6], clearTrace);
 }

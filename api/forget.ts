@@ -8,7 +8,11 @@
 interface Req {
   method?: string;
   headers: Record<string, string | string[]>;
-  body?: { memory?: string } | string;
+  body?: {
+    memory?: string;
+    lang?: string;
+    echoEnabled?: unknown;
+  } | string;
 }
 interface Res {
   status(code: number): Res;
@@ -16,10 +20,18 @@ interface Res {
   end(body?: string): void;
 }
 
-const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
+const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
+const MODEL = process.env.GLM_MODEL || 'glm-4.6';
 const KEY = process.env.ZHIPU_API_KEY;
+const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
-import { promptFor } from '../prompt.js';
+import {
+  echoEnabledFor,
+  isRequestBody,
+  promptFor,
+  upstreamStatusFor,
+  userPromptFor,
+} from '../prompt.js';
 
 const WINDOW = 60 * 60 * 1000;
 const LIMIT = 10;
@@ -59,10 +71,30 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  const body =
-    typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+  let parsedBody: unknown;
+  try {
+    parsedBody =
+      typeof req.body === 'string'
+        ? JSON.parse(req.body || '{}')
+        : req.body === undefined
+          ? {}
+          : req.body;
+  } catch {
+    json(res, 400, { error: 'BAD_BODY' });
+    return;
+  }
+  if (!isRequestBody(parsedBody)) {
+    json(res, 400, { error: 'BAD_BODY' });
+    return;
+  }
+  const body = parsedBody as {
+    memory?: string;
+    lang?: string;
+    echoEnabled?: unknown;
+  };
   const memory = typeof body.memory === 'string' ? body.memory.trim() : '';
   const lang: 'en' | 'zh' = body.lang === 'zh' ? 'zh' : 'en';
+  const echoEnabled = echoEnabledFor(body);
   if (memory.length < 30 || memory.length > 300) {
     json(res, 400, { error: 'BAD_LENGTH', len: memory.length });
     return;
@@ -76,29 +108,30 @@ export default async function handler(req: Req, res: Res) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const resp = await fetch(
-      'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${KEY}`,
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          temperature: 0.7,
-          messages: [
-            { role: 'system', content: promptFor(lang) },
-            { role: 'user', content: memory },
-          ],
-        }),
-        signal: ctrl.signal,
+    const resp = await fetch(`${BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${KEY}`,
       },
-    );
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: promptFor(lang) },
+          { role: 'user', content: userPromptFor(memory, echoEnabled) },
+        ],
+      }),
+      signal: ctrl.signal,
+    });
 
     if (!resp.ok) {
       const t = await resp.text();
-      json(res, 502, { error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) });
+      json(res, upstreamStatusFor(resp.status), {
+        error: 'GLM_ERROR',
+        status: resp.status,
+        detail: t.slice(0, 200),
+      });
       return;
     }
 

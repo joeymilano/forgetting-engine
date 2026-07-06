@@ -32,7 +32,13 @@ function checkRate(ip: string): boolean {
   return rec.count <= LIMIT;
 }
 
-import { promptFor } from '../../prompt.js';
+import {
+  echoEnabledFor,
+  isRequestBody,
+  promptFor,
+  upstreamStatusFor,
+  userPromptFor,
+} from '../../prompt.js';
 
 function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -62,10 +68,20 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
 
   let memory = '';
   let lang: 'en' | 'zh' = 'en';
+  let echoEnabled = true;
   try {
-    const body = (await request.json()) as { memory?: string; lang?: string };
+    const parsed: unknown = await request.json();
+    if (!isRequestBody(parsed)) {
+      return json({ error: 'BAD_BODY' }, 400);
+    }
+    const body = parsed as {
+      memory?: string;
+      lang?: string;
+      echoEnabled?: unknown;
+    };
     memory = typeof body.memory === 'string' ? body.memory.trim() : '';
     lang = body.lang === 'zh' ? 'zh' : 'en';
+    echoEnabled = echoEnabledFor(body);
   } catch {
     return json({ error: 'BAD_BODY' }, 400);
   }
@@ -92,7 +108,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
         temperature: 0.7,
         messages: [
           { role: 'system', content: promptFor(lang) },
-          { role: 'user', content: memory },
+          { role: 'user', content: userPromptFor(memory, echoEnabled) },
         ],
       }),
       signal: ctrl.signal,
@@ -100,7 +116,10 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
 
     if (!resp.ok) {
       const t = await resp.text();
-      return json({ error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) }, 502);
+      return json(
+        { error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) },
+        upstreamStatusFor(resp.status),
+      );
     }
 
     const data: any = await resp.json();

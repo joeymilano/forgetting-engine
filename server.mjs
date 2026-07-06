@@ -29,7 +29,13 @@ const MODEL = process.env.GLM_MODEL || 'glm-4.6';
 const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 // —— System Prompt(双语,按 body.lang 选择) ——
-import { promptFor } from './prompt.js';
+import {
+  echoEnabledFor,
+  isRequestBody,
+  promptFor,
+  upstreamStatusFor,
+  userPromptFor,
+} from './prompt.js';
 
 // —— 内存限流:每 IP 每小时 10 次 ——
 const WINDOW = 60 * 60 * 1000;
@@ -96,6 +102,10 @@ const server = http.createServer(async (req, res) => {
     send(res, 400, { error: 'BAD_BODY' });
     return;
   }
+  if (!isRequestBody(parsed)) {
+    send(res, 400, { error: 'BAD_BODY' });
+    return;
+  }
 
   const memory = typeof parsed.memory === 'string' ? parsed.memory.trim() : '';
   if (memory.length < 30 || memory.length > 300) {
@@ -103,6 +113,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   const lang = parsed.lang === 'zh' ? 'zh' : 'en';
+  const echoEnabled = echoEnabledFor(parsed);
 
   if (!KEY) {
     send(res, 500, { error: 'NO_KEY', hint: '请在 .env 设置 ZHIPU_API_KEY' });
@@ -125,7 +136,7 @@ const server = http.createServer(async (req, res) => {
           temperature: 0.7,
           messages: [
             { role: 'system', content: promptFor(lang) },
-            { role: 'user', content: memory },
+            { role: 'user', content: userPromptFor(memory, echoEnabled) },
           ],
         }),
         signal: ctrl.signal,
@@ -134,7 +145,11 @@ const server = http.createServer(async (req, res) => {
 
     if (!resp.ok) {
       const t = await resp.text();
-      send(res, 502, { error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) });
+      send(res, upstreamStatusFor(resp.status), {
+        error: 'GLM_ERROR',
+        status: resp.status,
+        detail: t.slice(0, 200),
+      });
       return;
     }
 
