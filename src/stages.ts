@@ -4,10 +4,12 @@
    按钮文案 / SEALING / EPILOGUE 已迁至 i18n.ts(支持中英双语)。
    ===================================================================== */
 
+export type Taste = 'sweet' | 'hot' | 'sour' | 'bitter' | 'numb' | 'clear';
+
 export interface StageVisual {
   index: number; // 1..6
-  name: string; // 阶段语义名(内部用,不展示)
-  taste: 'sweet' | 'hot' | 'sour' | 'bitter' | 'numb' | 'clear';
+  name: Taste; // 阶段语义名(内部用,不展示)
+  taste: Taste;
   letterSpacing: string;
   blur: string; // px
   opacity: number; // 0..1
