@@ -1,12 +1,12 @@
 /* =====================================================================
    demo-data.ts — 离线演示模式预置样例(双语)
    URL 带 ?demo=1 时,完全不调 API,从对应语言随机取一组。
-   每组 7 层,严格长度递减,中文第 7 层 ≤ 4 字,英文第 7 层 ≤ 4 字符。
+   每组 6 层,严格长度递减。
    ===================================================================== */
 
 import type { Lang } from './i18n';
 
-export type StageTuple = [string, string, string, string, string, string, string];
+export type StageTuple = [string, string, string, string, string, string];
 
 export const DEMO_DATA_ZH: StageTuple[] = [
   // —— 1. 一段告别 ——
@@ -17,7 +17,6 @@ export const DEMO_DATA_ZH: StageTuple[] = [
     '秋天……在某处告别。有人说,别再联系。照片都没了,只剩一张卡片。',
     '秋天  地铁  围巾  卡片',
     '后来轻了',
-    '……',
   ],
   // —— 2. 一次失败 ——
   [
@@ -27,7 +26,6 @@ export const DEMO_DATA_ZH: StageTuple[] = [
     '很久投进那件事……推掉一切……深夜……还是被拒。盯着屏幕,怀疑自己。',
     '深夜  屏幕  怀疑',
     '原来如此',
-    '嗯。',
   ],
   // —— 3. 一个没说出口的道歉 ——
   [
@@ -37,7 +35,6 @@ export const DEMO_DATA_ZH: StageTuple[] = [
     '那天……我先说了重话……想追,没开门。那句对不起,留在了门后。',
     '门后  对不起',
     '没说出口',
-    '——',
   ],
 ];
 
@@ -50,7 +47,6 @@ export const DEMO_DATA_EN: StageTuple[] = [
     'Autumn… we said goodbye somewhere… someone said never again… the photos are gone, only a card left.',
     'autumn  train  scarf  card',
     'lighter later',
-    '…',
   ],
   // —— 2. A failure ——
   [
@@ -60,7 +56,6 @@ export const DEMO_DATA_EN: StageTuple[] = [
     'poured so long into it… gave up everything… late nights… still rejected. staring at the screen, doubting.',
     'late nights  screen  doubt',
     'so it goes',
-    'oh.',
   ],
   // —— 3. An apology never spoken ——
   [
@@ -69,8 +64,7 @@ export const DEMO_DATA_EN: StageTuple[] = [
     'That day I said the cruel words first. Someone left, and I stood in the living room a long time, wanting to chase them but never opening the door. That sorry stayed behind the door.',
     'that day… I said the cruel words first… wanted to chase, never opened the door. that sorry, still behind the door.',
     'door  sorry',
-    'never spoken',
-    '—',
+    'unsaid',
   ],
 ];
 

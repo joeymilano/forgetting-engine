@@ -79,8 +79,7 @@ export function fallbackStages(memory: string, lang: Lang = 'zh'): string[] {
   const blur = isZh ? blurNamesZh : blurNamesEn;
   const ellipsis4 = isZh ? '……好像……记不清了。' : '…I think…I can barely remember.';
   const defaultWords = isZh ? ['那时', '后来'] : ['then', 'later'];
-  const poem6 = isZh ? '有些事发生过 / 后来轻了' : 'things happened / then they grew light';
-  const trace7 = isZh ? '……' : '…';
+  const clearTrace = isZh ? '……' : '…';
 
   // 第 1 层:删 ~15% 句子
   const s1 = dropSentences(sentences, 0.85).join('');
@@ -108,16 +107,15 @@ export function fallbackStages(memory: string, lang: Lang = 'zh'): string[] {
       const idx = hash(words.join('|') + picks.length) % words.length;
       if (!used.has(idx)) {
         used.add(idx);
-        picks.push(words[idx]);
+        picks.push(words[idx].slice(0, isZh ? 4 : 8));
       }
       guard++;
     }
   }
   const s5 = (picks.length ? picks : defaultWords).join('  ');
 
-  // 第 6 层 / 第 7 层
-  const s6 = poem6;
-  const s7 = trace7;
+  // 第 6 层:最后的清澈痕迹
+  const s6 = clearTrace;
 
-  return [s1, s2, s3, s4, s5, s6, s7];
+  return [s1, s2, s3, s4, s5, s6];
 }
