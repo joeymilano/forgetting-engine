@@ -9,6 +9,10 @@ const stages = [
   'faint ending',
   '…',
 ];
+const stageCaps = {
+  zh: [85, 65, 45, 28, 12, 4],
+  en: [240, 190, 135, 80, 28, 4],
+} as const;
 
 describe('parseExperiencePayload', () => {
   it('parses a complete six-sip experience object', () => {
@@ -142,6 +146,65 @@ Model suffix`;
     expect(() =>
       parseExperiencePayload(JSON.stringify({ stages: invalidStages }), lang),
     ).toThrowError('INVALID_STAGES');
+  });
+
+  it.each(
+    (['zh', 'en'] as const).flatMap((lang) =>
+      stageCaps[lang].map((cap, index) => ({ lang, cap, index })),
+    ),
+  )(
+    'rejects a $lang stage at index $index above its absolute cap',
+    ({ lang, cap, index }) => {
+      const character = lang === 'zh' ? '界' : 'x';
+      const invalidStages = stageCaps[lang].map((limit, stageIndex) =>
+        character.repeat(limit + (stageIndex === index ? 1 : 0)),
+      );
+
+      expect(() =>
+        parseExperiencePayload(
+          JSON.stringify({ stages: invalidStages }),
+          lang,
+        ),
+      ).toThrowError('INVALID_STAGES');
+      expect(Array.from(invalidStages[index])).toHaveLength(cap + 1);
+    },
+  );
+
+  it.each([5, 6])(
+    'rejects an English clear trace containing %s characters',
+    (length) => {
+      const invalidStages = stageCaps.en.map((limit, index) =>
+        'x'.repeat(index === 5 ? length : limit),
+      );
+
+      expect(() =>
+        parseExperiencePayload(
+          JSON.stringify({ stages: invalidStages }),
+          'en',
+        ),
+      ).toThrowError('INVALID_STAGES');
+    },
+  );
+
+  it('rejects a huge but decreasing response', () => {
+    const invalidStages = [1000, 999, 998, 997, 400, 4].map((length) =>
+      'x'.repeat(length),
+    );
+
+    expect(() =>
+      parseExperiencePayload(JSON.stringify({ stages: invalidStages }), 'en'),
+    ).toThrowError('INVALID_STAGES');
+  });
+
+  it('accepts Unicode stages at the exact Chinese code-point caps', () => {
+    const cappedUnicodeStages = stageCaps.zh.map((limit) => '🌙'.repeat(limit));
+
+    expect(
+      parseExperiencePayload(
+        JSON.stringify({ stages: cappedUnicodeStages }),
+        'zh',
+      ).stages,
+    ).toEqual(cappedUnicodeStages);
   });
 });
 

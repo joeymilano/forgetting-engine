@@ -34,6 +34,7 @@ function checkRate(ip: string): boolean {
 
 import {
   echoEnabledFor,
+  isRequestBody,
   promptFor,
   upstreamStatusFor,
   userPromptFor,
@@ -69,7 +70,11 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
   let lang: 'en' | 'zh' = 'en';
   let echoEnabled = true;
   try {
-    const body = (await request.json()) as {
+    const parsed: unknown = await request.json();
+    if (!isRequestBody(parsed)) {
+      return json({ error: 'BAD_BODY' }, 400);
+    }
+    const body = parsed as {
       memory?: string;
       lang?: string;
       echoEnabled?: unknown;

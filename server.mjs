@@ -31,6 +31,7 @@ const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 // —— System Prompt(双语,按 body.lang 选择) ——
 import {
   echoEnabledFor,
+  isRequestBody,
   promptFor,
   upstreamStatusFor,
   userPromptFor,
@@ -98,6 +99,10 @@ const server = http.createServer(async (req, res) => {
   try {
     parsed = JSON.parse(await readBody(req));
   } catch {
+    send(res, 400, { error: 'BAD_BODY' });
+    return;
+  }
+  if (!isRequestBody(parsed)) {
     send(res, 400, { error: 'BAD_BODY' });
     return;
   }

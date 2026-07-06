@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error prompt.js is the intentionally shared ESM runtime module.
-import { echoEnabledFor, promptFor, upstreamStatusFor, userPromptFor } from '../prompt.js';
+import { echoEnabledFor, isRequestBody, promptFor, upstreamStatusFor, userPromptFor } from '../prompt.js';
 
 describe('six-sip model prompts', () => {
   it.each(['zh', 'en'] as const)(
@@ -62,5 +62,14 @@ describe('six-sip model prompts', () => {
     }
     expect(upstreamStatusFor(500)).toBe(502);
     expect(upstreamStatusFor(503)).toBe(502);
+  });
+
+  it('accepts only non-array objects as request bodies', () => {
+    expect(isRequestBody({})).toBe(true);
+    expect(isRequestBody({ memory: 'x' })).toBe(true);
+    expect(isRequestBody(null)).toBe(false);
+    expect(isRequestBody([])).toBe(false);
+    expect(isRequestBody('memory')).toBe(false);
+    expect(isRequestBody(42)).toBe(false);
   });
 });

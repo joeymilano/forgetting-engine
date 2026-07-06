@@ -7,6 +7,7 @@
 import {
   fallbackExperience,
   normalizeExperience,
+  SIP_COUNT,
   type ExperienceResult,
 } from './experience';
 import { fallbackStages } from './fallback';
@@ -43,10 +44,21 @@ function objectCandidates(raw: string): string[] {
   return candidates;
 }
 
-function validateStageShape(stages: unknown, lang: Lang): asserts stages is string[] {
+const STAGE_CODE_POINT_CAPS: Record<
+  Lang,
+  readonly [number, number, number, number, number, number]
+> = {
+  zh: [85, 65, 45, 28, 12, 4],
+  en: [240, 190, 135, 80, 28, 4],
+};
+
+function validateStageShape(
+  stages: unknown,
+  lang: Lang,
+): asserts stages is string[] {
   if (
     !Array.isArray(stages) ||
-    stages.length !== 6 ||
+    stages.length !== SIP_COUNT ||
     !stages.every(
       (stage) => typeof stage === 'string' && stage.trim().length > 0,
     )
@@ -55,13 +67,16 @@ function validateStageShape(stages: unknown, lang: Lang): asserts stages is stri
   }
 
   const lengths = stages.map((stage) => Array.from(stage).length);
+  const caps = STAGE_CODE_POINT_CAPS[lang];
   const strictlyDecreasing = lengths.every(
     (length, index) => index === 0 || length < lengths[index - 1],
   );
-  const finalLimit = lang === 'zh' ? 4 : 6;
+  const withinAbsoluteCaps = lengths.every(
+    (length, index) => length <= caps[index],
+  );
   if (
     !strictlyDecreasing ||
-    lengths[5] > finalLimit ||
+    !withinAbsoluteCaps ||
     lengths[4] > lengths[0] * 0.5 ||
     lengths[5] > lengths[0] * 0.2
   ) {

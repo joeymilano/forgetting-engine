@@ -86,6 +86,10 @@ export function echoEnabledFor(body) {
   return body?.echoEnabled !== false;
 }
 
+export function isRequestBody(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function upstreamStatusFor(status) {
   return [400, 401, 403, 404, 429].includes(status) ? status : 502;
 }

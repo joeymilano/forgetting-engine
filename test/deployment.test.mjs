@@ -48,3 +48,11 @@ test('the Vercel adapter matches the Coding Plan endpoint and handles bad JSON b
   assert.match(source, /process\.env\.GLM_MODEL \|\| 'glm-4\.6'/);
   assert.match(source, /\{ error: 'BAD_BODY' \}/);
 });
+
+test('every API adapter rejects non-object JSON request bodies', () => {
+  for (const path of ['functions/api/forget.ts', 'api/forget.ts', 'server.mjs']) {
+    const source = readFileSync(join(root, path), 'utf8');
+    assert.match(source, /isRequestBody\(/, path);
+    assert.match(source, /\{ error: 'BAD_BODY' \}/, path);
+  }
+});

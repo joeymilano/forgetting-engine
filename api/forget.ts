@@ -27,6 +27,7 @@ const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 import {
   echoEnabledFor,
+  isRequestBody,
   promptFor,
   upstreamStatusFor,
   userPromptFor,
@@ -70,20 +71,27 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  let body: {
-    memory?: string;
-    lang?: string;
-    echoEnabled?: unknown;
-  };
+  let parsedBody: unknown;
   try {
-    body =
+    parsedBody =
       typeof req.body === 'string'
         ? JSON.parse(req.body || '{}')
-        : req.body || {};
+        : req.body === undefined
+          ? {}
+          : req.body;
   } catch {
     json(res, 400, { error: 'BAD_BODY' });
     return;
   }
+  if (!isRequestBody(parsedBody)) {
+    json(res, 400, { error: 'BAD_BODY' });
+    return;
+  }
+  const body = parsedBody as {
+    memory?: string;
+    lang?: string;
+    echoEnabled?: unknown;
+  };
   const memory = typeof body.memory === 'string' ? body.memory.trim() : '';
   const lang: 'en' | 'zh' = body.lang === 'zh' ? 'zh' : 'en';
   const echoEnabled = echoEnabledFor(body);
