@@ -1,9 +1,9 @@
 /* =====================================================================
    music.ts — 氛围 BGM 控制器(多曲轮换)
-   曲目(均 CC-BY 4.0,Kevin MacLeod / incompetech.com):
-     1. Constance       — 钢琴 + 弦乐,温暖怀旧(开场)
-     2. Lamentation     — 弦乐深情,情感厚重
-     3. Long Note Four  — 氛围 drone,空灵绵延(长尾)
+   曲目(均 CC-BY 4.0,Scott Buckley / www.scottbuckley.com.au):
+     1. Amberlight — 柔和怀旧钢琴 + 管弦,久石让 / 吉卜力般的暖意(开场·忆往昔)
+     2. Meanwhile  — 空灵梦境钢琴,后半弦乐涌入,苦乐参半的余韵(中段)
+     3. Penumbra   — 冰川般缓慢的弦乐冥想,饱含思念与怅惘(长尾·潸然)
    - 顺序自动轮换:每首自然结束 → 淡入下一首 → 循环
    - 底部 now-playing 显示曲名,点击切下一首
    - 浏览器自动播放策略:首次任意用户交互后温和自动淡入
@@ -18,9 +18,9 @@ interface Track {
 }
 
 const TRACKS: Track[] = [
-  { src: '/bgm-3.mp3', name: 'Constance', author: 'Kevin MacLeod' },
-  { src: '/bgm-1.mp3', name: 'Lamentation', author: 'Kevin MacLeod' },
-  { src: '/bgm-2.mp3', name: 'Long Note Four', author: 'Kevin MacLeod' },
+  { src: '/amberlight.mp3', name: 'Amberlight', author: 'Scott Buckley' },
+  { src: '/meanwhile.mp3', name: 'Meanwhile', author: 'Scott Buckley' },
+  { src: '/penumbra.mp3', name: 'Penumbra', author: 'Scott Buckley' },
 ];
 
 const TARGET_VOLUME = 0.42;

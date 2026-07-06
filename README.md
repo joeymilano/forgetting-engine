@@ -111,6 +111,18 @@ forgetting-engine/
 **不保存** 是作品的一部分:用户输入不落库、不写 localStorage、不打日志正文。
 页面上承诺了「它不会被保存」,代码里就真的做到了。
 
+## 致谢 · 音乐
+
+氛围 BGM 均为 **Scott Buckley** 创作,依 **CC-BY 4.0** 授权(可自由用于任何项目,含商用,需署名):
+
+- *Amberlight* — 柔和怀旧钢琴,吉卜力般的暖意
+- *Meanwhile* — 空灵梦境钢琴,苦乐参半的余韵
+- *Penumbra* — 冰川般的弦乐冥想,饱含思念
+
+> Music by Scott Buckley – released under CC-BY 4.0. www.scottbuckley.com.au
+>
+> 曲名与作者在页面底部「正在播放」处实时显示,作为署名。
+
 ## 禁止事项
 
 不引入 React/Vue/Three.js/GSAP/Tailwind;不把 Key 写进前端;不加音效、彩色渐变、emoji、加载 spinner;
