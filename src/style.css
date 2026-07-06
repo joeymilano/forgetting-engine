@@ -398,32 +398,34 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
   border-radius: 50%;
   pointer-events: none;
   z-index: 60;
   /* 亮白实心中心点:深色背景上极高对比度,一眼可见 */
-  background: rgba(255, 244, 224, 0.96);
-  mix-blend-mode: screen;
-  /* 三层散射光:近暖金 → 中暖橙 → 远柔光,营造烛火般的精致光晕 */
+  background: rgba(255, 248, 236, 1);
+  /* 不用 mix-blend-mode:screen —— 混合模式会强制每帧与背景重新合成,
+     既拖慢移动(卡顿),又在暗背景上把光点压暗(找不到)。
+     去掉后光标独占合成层,transform 位移零成本,亮点始终清晰。 */
+  /* 描边环 + 两层柔光:环让光标在任何背景上都有清晰轮廓,一眼可寻 */
   box-shadow:
+    0 0 0 1.5px rgba(255, 188, 128, 0.55),
     0 0 10px 2px rgba(255, 214, 168, 0.95),
-    0 0 34px 8px rgba(255, 184, 128, 0.5),
-    0 0 80px 18px rgba(255, 162, 102, 0.22);
-  transition: width 0.25s ease, height 0.25s ease, margin 0.25s ease,
-    box-shadow 0.3s ease, opacity 0.4s ease;
+    0 0 30px 8px rgba(255, 184, 128, 0.42);
+  transition: width 0.16s ease, height 0.16s ease, margin 0.16s ease,
+    box-shadow 0.22s ease, opacity 0.4s ease;
   will-change: transform;
 }
 .cursor-glow.on-target {
-  width: 14px;
-  height: 14px;
-  margin: -7px 0 0 -7px;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
   box-shadow:
-    0 0 14px 3px rgba(255, 226, 184, 1),
-    0 0 50px 12px rgba(255, 196, 140, 0.62),
-    0 0 120px 28px rgba(255, 170, 110, 0.3);
+    0 0 0 2px rgba(255, 205, 150, 0.72),
+    0 0 16px 4px rgba(255, 226, 184, 1),
+    0 0 46px 12px rgba(255, 196, 140, 0.5);
 }
 
 /* =====================================================================
