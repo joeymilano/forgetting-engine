@@ -58,13 +58,84 @@ English labels:
 - Fifth Sip · Numb — the weariness of half a lifetime
 - Sixth Sip · Clear — everything loosens; the past is gone
 
+## AI as an Invisible Director
+
+AI personalizes the ritual without becoming a visible conversational character. It makes one
+request per submitted memory and returns a constrained experience package:
+
+- exactly six transformed stages;
+- a broad emotional profile used only for presentation;
+- one suggested starting soundtrack from the three installed tracks;
+- a pacing profile that selects from predefined transition timings;
+- one optional final echo: a restrained sentence that acknowledges release without giving
+  advice or pretending to provide therapy.
+
+The model does not generate interface markup, CSS values, diagnoses, factual claims about the
+visitor, or open-ended conversation. It may only select from client-defined presentation tokens.
+
+### Emotional direction
+
+The emotional profile uses a small vocabulary such as warmth, regret, attachment, grief,
+weariness, and release. The profile can affect:
+
+- the suggested first track;
+- gentle differences in stage pause and weathering duration;
+- existing ambient color-temperature variables;
+- the wording of the final echo.
+
+The visitor's explicit music choice always wins. Once the visitor manually selects a track,
+later AI state must not replace it.
+
+### Soundtrack recommendation
+
+- warmth, tenderness, or grateful remembrance → `Looking Back / 回望`;
+- regret, separation, or unresolved grief → `Rain at Dusk / 暮雨`;
+- weariness, acceptance, or release → `The Far Shore / 彼岸`.
+
+If the emotional profile is missing or invalid, the experience starts with `Looking Back`.
+
+### Final echo
+
+The final echo appears after the fixed epilogue, never instead of it. It is one sentence, short
+enough to read in a single breath. Examples of tone:
+
+- `你没有否认它发生过，只是不再替它守夜。`
+- `What happened remains true; it no longer has to remain heavy.`
+
+The echo must not:
+
+- diagnose mental health or emotional conditions;
+- tell the visitor what they should feel or do;
+- promise healing, closure, or recovery;
+- invent people, events, motives, or details not present in the memory;
+- imitate a therapist, deceased person, or named person from the memory.
+
+The first-time guide includes a `Personalized final echo / 个性化余响` setting. It is on by
+default, can be turned off before submission, and its preference may be stored without storing
+the generated echo or memory.
+
+### Structured response and fallback
+
+The API response is accepted only when:
+
+- `stages` contains exactly six non-empty strings;
+- the emotion and soundtrack values belong to known enums;
+- pacing resolves to one of the predefined client profiles;
+- the optional echo meets length and content constraints.
+
+Invalid optional metadata falls back independently and must not discard otherwise valid stages.
+If the full AI request fails, the local six-stage algorithm provides the ritual, the default
+soundtrack is used, pacing remains standard, and the fixed epilogue appears without a generated
+echo.
+
 ## First-Time Guidance
 
 A three-part ritual guide appears on the first visit after the opening veil:
 
 1. **Before the bowl**  
-   Write one memory that still has weight. Use 30–300 characters. The text exists only in the
-   current browser session and is never written to a database or browser storage.
+   Write one memory that still has weight. Use 30–300 characters. The app sends the text for one
+   AI-assisted transformation, does not write it to its own database or browser storage, and
+   keeps the visible session copy only until the page is closed or refreshed.
 
 2. **Six sips**  
    Each press takes another sip. Sweet, hot, sour, bitter, numb, and finally clear water
@@ -80,6 +151,8 @@ The guide uses the existing translucent, quiet, serif-led design language. It in
 - Back, Continue, and Begin the ritual controls;
 - Skip guide;
 - a persistent `How it works / 仪式说明` control for replay;
+- a plain-language AI and privacy note;
+- a switch for the optional personalized final echo;
 - keyboard focus containment, Escape to close on replay, and reduced-motion support.
 
 Only completion of the guide is stored in `localStorage`. Memory text is never stored there.
@@ -172,12 +245,18 @@ These shifts modify existing ambient variables and stage accents without reducin
   bilingual rendering.
 - Extend the existing i18n dictionary instead of embedding user-facing strings in event handlers.
 - Store only guide completion and selected track metadata. Never store memory content.
+- Extend the existing AI endpoint to return six stages plus validated presentation metadata in
+  one response; do not add extra model calls for music, pacing, or the final echo.
 - Preserve the current Cloudflare Pages and fallback behavior.
 
 ## Error Handling
 
 - LLM or API failure still produces all six stages through the local fallback.
 - A malformed API response is rejected unless it contains exactly six non-empty strings.
+- Invalid AI presentation metadata falls back field by field without blocking valid six-stage
+  text.
+- Generated echoes that exceed the length limit or violate the restrained-tone contract are
+  omitted.
 - Music load errors do not block the writing or forgetting ritual.
 - Guide state failure defaults to showing the guide, which is safer for first-time comprehension.
 - Missing optional controls degrade to the existing writing flow rather than hiding the app.
@@ -196,6 +275,7 @@ These shifts modify existing ambient variables and stage accents without reducin
 Automated checks will cover:
 
 - the six-stage contract in fallback generation and API response validation;
+- structured AI metadata validation, manual-music-choice precedence, and echo omission;
 - stage button labels and the transition from sip six to the epilogue;
 - onboarding first visit, completion persistence, replay, close, and language switching;
 - music next/previous wraparound, paused selection, playing crossfade state, and load failure;
