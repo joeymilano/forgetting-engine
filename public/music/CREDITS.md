@@ -22,4 +22,4 @@ Official source: [Scott Buckley Music Library](https://www.scottbuckley.com.au/l
 
 > 'At The End Of All Things' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au
 
-These recordings are used synchronized in this interactive artwork. They are not offered for standalone redistribution and must not be registered with any content-identification or Content ID service.
+These recordings are used synchronized in this interactive artwork. They are not resold in isolation or redistributed or reuploaded to streaming platforms, and they are not submitted to Content ID.
