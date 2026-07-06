@@ -29,7 +29,7 @@ const MODEL = process.env.GLM_MODEL || 'glm-4.6';
 const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 // —— System Prompt(双语,按 body.lang 选择) ——
-import { promptFor } from './prompt.js';
+import { echoEnabledFor, promptFor, userPromptFor } from './prompt.js';
 
 // —— 内存限流:每 IP 每小时 10 次 ——
 const WINDOW = 60 * 60 * 1000;
@@ -103,6 +103,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   const lang = parsed.lang === 'zh' ? 'zh' : 'en';
+  const echoEnabled = echoEnabledFor(parsed);
 
   if (!KEY) {
     send(res, 500, { error: 'NO_KEY', hint: '请在 .env 设置 ZHIPU_API_KEY' });
@@ -125,7 +126,7 @@ const server = http.createServer(async (req, res) => {
           temperature: 0.7,
           messages: [
             { role: 'system', content: promptFor(lang) },
-            { role: 'user', content: memory },
+            { role: 'user', content: userPromptFor(memory, echoEnabled) },
           ],
         }),
         signal: ctrl.signal,

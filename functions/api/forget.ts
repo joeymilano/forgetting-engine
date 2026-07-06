@@ -32,7 +32,11 @@ function checkRate(ip: string): boolean {
   return rec.count <= LIMIT;
 }
 
-import { promptFor } from '../../prompt.js';
+import {
+  echoEnabledFor,
+  promptFor,
+  userPromptFor,
+} from '../../prompt.js';
 
 function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -62,10 +66,16 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
 
   let memory = '';
   let lang: 'en' | 'zh' = 'en';
+  let echoEnabled = true;
   try {
-    const body = (await request.json()) as { memory?: string; lang?: string };
+    const body = (await request.json()) as {
+      memory?: string;
+      lang?: string;
+      echoEnabled?: unknown;
+    };
     memory = typeof body.memory === 'string' ? body.memory.trim() : '';
     lang = body.lang === 'zh' ? 'zh' : 'en';
+    echoEnabled = echoEnabledFor(body);
   } catch {
     return json({ error: 'BAD_BODY' }, 400);
   }
@@ -92,7 +102,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
         temperature: 0.7,
         messages: [
           { role: 'system', content: promptFor(lang) },
-          { role: 'user', content: memory },
+          { role: 'user', content: userPromptFor(memory, echoEnabled) },
         ],
       }),
       signal: ctrl.signal,

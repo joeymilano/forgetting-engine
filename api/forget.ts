@@ -8,7 +8,11 @@
 interface Req {
   method?: string;
   headers: Record<string, string | string[]>;
-  body?: { memory?: string } | string;
+  body?: {
+    memory?: string;
+    lang?: string;
+    echoEnabled?: unknown;
+  } | string;
 }
 interface Res {
   status(code: number): Res;
@@ -19,7 +23,7 @@ interface Res {
 const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
 const KEY = process.env.ZHIPU_API_KEY;
 
-import { promptFor } from '../prompt.js';
+import { echoEnabledFor, promptFor, userPromptFor } from '../prompt.js';
 
 const WINDOW = 60 * 60 * 1000;
 const LIMIT = 10;
@@ -63,6 +67,7 @@ export default async function handler(req: Req, res: Res) {
     typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
   const memory = typeof body.memory === 'string' ? body.memory.trim() : '';
   const lang: 'en' | 'zh' = body.lang === 'zh' ? 'zh' : 'en';
+  const echoEnabled = echoEnabledFor(body);
   if (memory.length < 30 || memory.length > 300) {
     json(res, 400, { error: 'BAD_LENGTH', len: memory.length });
     return;
@@ -89,7 +94,7 @@ export default async function handler(req: Req, res: Res) {
           temperature: 0.7,
           messages: [
             { role: 'system', content: promptFor(lang) },
-            { role: 'user', content: memory },
+            { role: 'user', content: userPromptFor(memory, echoEnabled) },
           ],
         }),
         signal: ctrl.signal,
