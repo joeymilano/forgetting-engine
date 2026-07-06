@@ -72,7 +72,20 @@ body {
   text-rendering: optimizeLegibility;
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+/* 自定义光标机制:仅当 JS 已就绪(main.ts 在 initAmbient 绑定 mousemove 后
+   注入 html.js-ready)才隐藏系统光标、由 #cursor-glow 接管。
+   JS 未就绪(模块加载失败 / 运行时异常)时系统光标全程可见,
+   杜绝「光标消失且无任何替代」的灾难态。 */
+html.js-ready,
+html.js-ready body {
   cursor: none;
+}
+html:not(.js-ready) *,
+html:not(.js-ready) *::before,
+html:not(.js-ready) *::after {
+  cursor: auto !important;
 }
 
 /* 触屏设备:恢复系统光标 */
@@ -791,6 +804,8 @@ body:not(.revealed) .writing-view > .memory-input,
 body:not(.revealed) .writing-view > .meta-row,
 body:not(.revealed) .writing-view > .submit-btn {
   opacity: 0;
+  /* failsafe:若 JS 未能注入 body.revealed,5s 后强制升起,避免输入区永久缺席 */
+  animation: fe-failsafe-show 0.01s 5s forwards;
 }
 body.revealed .writing-view > .memory-input {
   animation: rise-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.7s both;
@@ -828,6 +843,16 @@ body.revealed .writing-view > .submit-btn {
 .app.is-hidden {
   opacity: 0;
   pointer-events: none;
+  /* failsafe:若 main.ts 未能移除 is-hidden(模块加载失败 / 运行时异常),
+     5s 后由纯 CSS 强制恢复可见与可交互,保证主舞台不会永久空白。
+     正常流程下 reveal 在 ~3s 内移除 is-hidden,此动画来不及触发即被取消。 */
+  animation: fe-failsafe-show 0.01s 5s forwards;
+}
+@keyframes fe-failsafe-show {
+  to {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .writing-view,

@@ -549,6 +549,9 @@ function init() {
   applyLang(getLang());
 
   initAmbient();
+  // cursor-glow 的 mousemove 已绑定 → 此时隐藏系统光标才安全。
+  // 若本模块加载/执行失败,html 上无 js-ready,系统光标仍可见(见 style.css 兜底)。
+  document.documentElement.classList.add('js-ready');
   initMusic();
   initMemoryStars();
 
