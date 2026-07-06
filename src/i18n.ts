@@ -39,7 +39,7 @@ export interface Strings {
   sealing: string[]; // 3 条
   epiloguePrimary: string;
   epilogueSecondary: string;
-  stageButtons: string[]; // 7 个
+  stageButtons: string[]; // 6 个（孟婆汤六口:前 5 口推进，第 6 口渡过忘川→尾声）
   langAria: string;
   themeAria: string;
   themeNames: { stardust: string; mist: string; aurora: string };
@@ -76,13 +76,12 @@ const STRINGS: Record<Lang, Strings> = {
     epiloguePrimary: 'It is no longer here. May you be a little lighter, too.',
     epilogueSecondary: '— The Forgetting Engine',
     stageButtons: [
-      'Continue',
-      'Continue',
-      'Continue',
-      'Continue',
+      'Take another sip',
+      'Take another sip',
+      'Take another sip',
       'Almost there',
-      'One last time',
-      'Let go',
+      'One last sip',
+      'Cross the river',
     ],
     langAria: 'Switch language',
     themeAria: 'Switch ambient theme',
@@ -146,7 +145,7 @@ const STRINGS: Record<Lang, Strings> = {
     sealing: ['正在读取这段记忆…', '正在测量它的重量…', '正在辨认它的轮廓…', '让字句慢慢松动…', '风化即将开始…'],
     epiloguePrimary: '它已经不在这里了。希望你也轻了一点。',
     epilogueSecondary: '— 遗忘引擎 The Forgetting Engine',
-    stageButtons: ['继续遗忘', '继续遗忘', '继续', '继续', '快好了', '最后一次', '放手'],
+    stageButtons: ['再饮一口', '再饮一口', '再饮一口', '快好了', '最后一口', '渡过忘川'],
     langAria: '切换语言',
     themeAria: '切换氛围主题',
     themeNames: { stardust: '星河', mist: '雾海', aurora: '极光' },

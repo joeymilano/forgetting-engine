@@ -1,10 +1,11 @@
 /* =====================================================================
    main.ts — 入口:状态机 + 流程编排
-   状态:IDLE → WRITING → SEALING → STAGE_1..7 → EPILOGUE
+   状态:IDLE → WRITING → SEALING → STAGE_1..6(孟婆汤六口）→ EPILOGUE
    全程无导航、无 logo、无 spinner。任何时刻可点元素 ≤ 1。
    ===================================================================== */
 
 import { STAGES, type StageVisual } from './stages';
+import { SIP_COUNT } from './experience';
 import { typewriter } from './typewriter';
 import { generateStages } from './llm';
 import { Weathering, type LayerSpec } from './weathering';
@@ -43,12 +44,11 @@ type State =
   | 'STAGE_4'
   | 'STAGE_5'
   | 'STAGE_6'
-  | 'STAGE_7'
   | 'EPILOGUE';
 
 let state: State = 'IDLE';
 let stages: string[] = [];
-let currentIdx = 0; // 1..7
+let currentIdx = 0; // 1..SIP_COUNT(6）
 let isTransitioning = false;
 let sealingTimers: ReturnType<typeof setTimeout>[] = [];
 let epilogueTimers: ReturnType<typeof setTimeout>[] = [];
@@ -234,7 +234,7 @@ function buildNoise() {
 // ---------- 进度点 ----------
 function buildProgress() {
   progressEl.innerHTML = '';
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < SIP_COUNT; i++) {
     const dot = document.createElement('div');
     dot.className = 'dot';
     progressEl.appendChild(dot);
@@ -487,7 +487,7 @@ let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 window.addEventListener('resize', () => {
   if (resizeTimer) clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (currentIdx >= 1 && currentIdx <= 7 && !isTransitioning) {
+    if (currentIdx >= 1 && currentIdx <= SIP_COUNT && !isTransitioning) {
       applyStage(currentIdx);
     }
   }, 200);
@@ -500,7 +500,7 @@ submitBtn.addEventListener('click', () => {
 });
 stageBtn.addEventListener('click', async () => {
   if (isTransitioning) return;
-  if (currentIdx < 7) await gotoStage(currentIdx + 1);
+  if (currentIdx < SIP_COUNT) await gotoStage(currentIdx + 1);
   else await enterEpilogue();
 });
 resetLink.addEventListener('click', (e) => {
@@ -576,7 +576,7 @@ function init() {
     langToggle.addEventListener('click', () => {
       toggleLang();
       onboarding.refreshLanguage();
-      if (currentIdx >= 1 && currentIdx <= 7 && !isTransitioning) {
+      if (currentIdx >= 1 && currentIdx <= SIP_COUNT && !isTransitioning) {
         applyStage(currentIdx);
       }
     });
