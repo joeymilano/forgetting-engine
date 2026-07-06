@@ -309,6 +309,9 @@ body {
   height: 100vh;
   pointer-events: none;
   z-index: 3;
+  /* 同 particle-canvas:独占合成层,避免逐帧重绘连累背景重栅格化 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* 7. bokeh 光斑:多个柔焦彩色圆点,缓慢飘移 */
@@ -406,6 +409,11 @@ body {
   height: 100vh;
   pointer-events: none;
   z-index: 20;
+  /* 独占合成层:转场时逐帧重绘不再连累下方模糊/混合背景层
+     重新栅格化 —— 这是「每点一次生成就闪黑块」的根因。 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
 }
 
 /* =====================================================================
@@ -1128,7 +1136,9 @@ html[lang='zh'] .round-btn:hover:not(:disabled) {
   margin: 0;
   transition: letter-spacing 1.2s ease, filter 1.2s ease, opacity 1.2s ease,
     word-spacing 1.2s ease, font-size 1.2s ease, line-height 1.2s ease, color 1.2s ease;
-  will-change: opacity, filter, transform;
+  /* 不把 filter 放进 will-change:模糊滤镜图层在重建时会闪黑矩形。
+     转场期间正文本就隐藏(由粒子接管动画),无需为 filter 开层。 */
+  will-change: transform, opacity;
 }
 
 .stage-text[data-stage='2'] .blur-name {
@@ -1459,6 +1469,9 @@ html[lang='zh'] .foot-mark {
   height: 100vh;
   pointer-events: none;
   z-index: 7;
+  /* 同 particle-canvas:独占合成层 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* =====================================================================
