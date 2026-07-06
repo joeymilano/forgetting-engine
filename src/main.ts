@@ -12,6 +12,7 @@ import { initAmbient, setAmbientTheme, type AmbientTheme } from './ambient';
 import { applyLang, getLang, t, toggleLang, type Lang } from './i18n';
 import { initMusic } from './music';
 import { initMemoryStars, addMemoryStar } from './memory-stars';
+import { initOnboarding } from './onboarding';
 
 // ---------- DOM ----------
 const app = document.getElementById('app')!;
@@ -547,6 +548,7 @@ function init() {
 
   // 先应用语言:填充所有 data-i18n 文案 + 语言按钮 active 态(默认英文)
   applyLang(getLang());
+  const onboarding = initOnboarding();
 
   initAmbient();
   // cursor-glow 的 mousemove 已绑定 → 此时隐藏系统光标才安全。
@@ -573,6 +575,7 @@ function init() {
   if (langToggle) {
     langToggle.addEventListener('click', () => {
       toggleLang();
+      onboarding.refreshLanguage();
       if (currentIdx >= 1 && currentIdx <= 7 && !isTransitioning) {
         applyStage(currentIdx);
       }
@@ -580,9 +583,13 @@ function init() {
   }
 
   // 字体就绪后才显示正文,避免 FOUT 破坏氛围
+  let hasRevealed = false;
   const reveal = () => {
+    if (hasRevealed) return;
+    hasRevealed = true;
     document.body.classList.add('revealed'); // 触发开场帷幕揭开 + 中心光点 + 内容错峰升入
     app.classList.remove('is-hidden');
+    window.dispatchEvent(new Event('fe:revealed'));
   };
   if (document.fonts && document.fonts.ready) {
     // 显式触发关键字体加载,确保 canvas 测量准确

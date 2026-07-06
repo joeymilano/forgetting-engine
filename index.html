@@ -104,6 +104,16 @@
       </button>
 
       <button
+        id="guide-replay"
+        class="ctrl-btn guide-replay"
+        type="button"
+        aria-label="How it works"
+        title="How it works"
+      >
+        How it works
+      </button>
+
+      <button
         id="music-toggle"
         class="ctrl-btn music-toggle is-off"
         type="button"
@@ -177,6 +187,64 @@
         >
       </section>
     </main>
+
+    <dialog id="ritual-guide" class="ritual-guide" aria-label="Ritual guide">
+      <div class="guide-shell">
+        <header class="guide-header">
+          <p id="guide-progress" class="guide-progress" aria-live="polite"></p>
+          <button id="guide-skip" class="guide-skip" type="button"></button>
+        </header>
+
+        <div class="guide-body">
+          <section class="guide-step" data-guide-step="0">
+            <p class="guide-kicker" data-guide-kicker></p>
+            <h2 class="guide-title" data-guide-title></h2>
+            <p class="guide-copy" data-guide-copy></p>
+            <p id="guide-privacy" class="guide-privacy"></p>
+            <label class="guide-echo-setting" for="echo-enabled">
+              <span class="guide-switch">
+                <input
+                  id="echo-enabled"
+                  type="checkbox"
+                  role="switch"
+                  checked
+                />
+                <span class="guide-switch-track" aria-hidden="true"></span>
+              </span>
+              <span class="guide-echo-copy">
+                <span id="guide-echo-label" class="guide-echo-label"></span>
+                <small id="guide-echo-note" class="guide-echo-note"></small>
+              </span>
+            </label>
+          </section>
+
+          <section class="guide-step" data-guide-step="1" hidden>
+            <p class="guide-kicker" data-guide-kicker></p>
+            <h2 class="guide-title" data-guide-title></h2>
+            <p class="guide-copy" data-guide-copy></p>
+            <ol id="guide-tastes" class="guide-tastes">
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+            </ol>
+          </section>
+
+          <section class="guide-step" data-guide-step="2" hidden>
+            <p class="guide-kicker" data-guide-kicker></p>
+            <h2 class="guide-title" data-guide-title></h2>
+            <p class="guide-copy" data-guide-copy></p>
+          </section>
+        </div>
+
+        <footer class="guide-actions">
+          <button id="guide-back" class="guide-action guide-back" type="button"></button>
+          <button id="guide-next" class="guide-action guide-next" type="button"></button>
+        </footer>
+      </div>
+    </dialog>
 
     <!-- 右侧进度:7 道竖向刻度,走过的逐渐熄灭 -->
     <aside id="progress" class="progress" aria-hidden="true"></aside>
