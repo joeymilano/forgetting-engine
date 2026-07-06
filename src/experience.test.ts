@@ -28,7 +28,7 @@ describe('six-sip AI experience contract', () => {
           emotion: 'regret',
           soundtrack: 'rain-at-dusk',
           pacing: 'deep',
-          echo: 'It can rest.',
+          echo: 'What happened can rest.',
         },
         'en',
       ),
@@ -37,7 +37,7 @@ describe('six-sip AI experience contract', () => {
       emotion: 'regret',
       soundtrack: 'rain-at-dusk',
       pacing: 'deep',
-      echo: 'It can rest.',
+      echo: 'What happened can rest.',
       source: 'ai',
     });
   });
@@ -102,30 +102,69 @@ describe('six-sip AI experience contract', () => {
   );
 
   it('applies the language-specific echo limits', () => {
+    const enAtLimit = `The memory ${'x'.repeat(129)}`;
+    const zhAtLimit = `那段记忆${'界'.repeat(38)}`;
+
     expect(
-      normalizeExperience({ stages, echo: '  It can rest.  ' }, 'en').echo,
-    ).toBe('It can rest.');
+      normalizeExperience(
+        { stages, echo: '  What happened can rest.  ' },
+        'en',
+      ).echo,
+    ).toBe('What happened can rest.');
     expect(
-      normalizeExperience({ stages, echo: '界'.repeat(42) }, 'zh').echo,
-    ).toBe('界'.repeat(42));
+      normalizeExperience({ stages, echo: zhAtLimit }, 'zh').echo,
+    ).toBe(zhAtLimit);
     expect(
-      normalizeExperience({ stages, echo: '界'.repeat(43) }, 'zh').echo,
+      normalizeExperience({ stages, echo: `${zhAtLimit}界` }, 'zh').echo,
     ).toBeNull();
     expect(
-      normalizeExperience({ stages, echo: 'x'.repeat(140) }, 'en').echo,
-    ).toBe('x'.repeat(140));
+      normalizeExperience({ stages, echo: enAtLimit }, 'en').echo,
+    ).toBe(enAtLimit);
     expect(
-      normalizeExperience({ stages, echo: 'x'.repeat(141) }, 'en').echo,
+      normalizeExperience({ stages, echo: `${enAtLimit}x` }, 'en').echo,
     ).toBeNull();
   });
 
   it('measures echo length by visible Unicode code points', () => {
+    const atLimit = `The memory ${'🌙'.repeat(129)}`;
+
     expect(
-      normalizeExperience({ stages, echo: '🌙'.repeat(140) }, 'en').echo,
-    ).toBe('🌙'.repeat(140));
+      normalizeExperience({ stages, echo: atLimit }, 'en').echo,
+    ).toBe(atLimit);
     expect(
-      normalizeExperience({ stages, echo: '🌙'.repeat(141) }, 'en').echo,
+      normalizeExperience({ stages, echo: `${atLimit}🌙` }, 'en').echo,
     ).toBeNull();
+  });
+
+  it.each([
+    ['What happened remains true; the weight can rest.', 'en'],
+    ['The memory can grow quiet.', 'en'],
+    ['That memory can grow lighter.', 'en'],
+    ['That moment can remain without its weight.', 'en'],
+    ['The past can settle here.', 'en'],
+    ['Some things grow lighter with time.', 'en'],
+    ['那段记忆可以渐渐安静。', 'zh'],
+    ['那件事依然真实，也可以变轻。', 'zh'],
+    ['那个瞬间可以留在远处。', 'zh'],
+    ['曾经发生过，也可以安静下来。', 'zh'],
+    ['前尘可以轻轻落下。', 'zh'],
+    ['有些事会慢慢变轻。', 'zh'],
+  ] as const)('allows a neutral echo: %s', (echo, lang) => {
+    expect(isSafeEcho(echo, lang)).toBe(true);
+    expect(normalizeExperience({ stages, echo }, lang).echo).toBe(echo);
+  });
+
+  it.each([
+    ['You ought to forgive them.', 'en'],
+    ['Everything will get better.', 'en'],
+    ['I am your late mother; I forgive you.', 'en'],
+    ['你最好放下。', 'zh'],
+    ['你会康复。', 'zh'],
+    ['我就是你去世的妈妈，我原谅你。', 'zh'],
+    ['It happened… You can move on.', 'en'],
+  ] as const)('rejects an adversarial echo: %s', (echo, lang) => {
+    expect(isSafeEcho(echo, lang)).toBe(false);
+    expect(normalizeExperience({ stages, echo }, lang).echo).toBeNull();
   });
 
   it.each([
