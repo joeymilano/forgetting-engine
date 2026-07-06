@@ -35,4 +35,13 @@ describe('six-sip model prompts', () => {
     expect(echoEnabledFor({ echoEnabled: 'false' })).toBe(true);
     expect(echoEnabledFor({ echoEnabled: false })).toBe(false);
   });
+
+  it('explicitly forbids imitating named people from the memory in both languages', () => {
+    expect(promptFor('en')).toContain(
+      'Never imitate a therapist, a deceased person, or any named person from the memory.',
+    );
+    expect(promptFor('zh')).toContain(
+      '不得模仿治疗师、已故人物或记忆中任何具名人物。',
+    );
+  });
 });
