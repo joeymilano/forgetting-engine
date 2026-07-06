@@ -51,21 +51,46 @@ function includes<T extends readonly string[]>(
   return typeof value === 'string' && values.some((item) => item === value);
 }
 
+const UNSAFE_ECHO_PATTERNS = [
+  /\byou\s+(?:should|need\s+to|must)\b/iu,
+  /\b(?:diagnos(?:e|ed|is|ing)|depression|anxiety\s+disorder)\b/iu,
+  /\b(?:heal(?:ed|ing)?|recover(?:ed|y|ing)?|closure)\b/iu,
+  /\bas\s+your\s+therapist\b/iu,
+  /\b(?:speaking|writing)\s+as\b/iu,
+  /你(?:应该|需要|必须)/u,
+  /(?:诊断|抑郁症|焦虑症)/u,
+  /(?:痊愈|一定会好|彻底走出)/u,
+  /作为你的治疗师/u,
+  /我是你(?:已故的)?(?:母亲|父亲|伴侣|朋友|亲人|治疗师)/u,
+] as const;
+
+/**
+ * Deterministic client-side defense in depth for generated echoes.
+ * Preventing invented people, events, motives, or details remains the
+ * responsibility of the prompt and server because it requires memory context.
+ */
+export function isSafeEcho(value: string, lang: Lang): boolean {
+  const echo = value.trim();
+  const echoLimit = lang === 'zh' ? 42 : 140;
+
+  if (!echo || Array.from(echo).length > echoLimit) return false;
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(echo)) return false;
+
+  const withoutTerminalPunctuation = echo.replace(/[.!?。！？]+$/u, '');
+  if (/[.!?。！？]/u.test(withoutTerminalPunctuation)) return false;
+
+  return !UNSAFE_ECHO_PATTERNS.some((pattern) => pattern.test(echo));
+}
+
 export function normalizeExperience(
   raw: Record<string, unknown>,
   lang: Lang,
-  fallbackStages: string[],
 ): ExperienceResult {
   validateStages(raw.stages);
-  void fallbackStages;
 
-  const echoLimit = lang === 'zh' ? 42 : 140;
   const trimmedEcho =
     typeof raw.echo === 'string' ? raw.echo.trim() : undefined;
-  const echo =
-    trimmedEcho && trimmedEcho.length <= echoLimit
-      ? trimmedEcho
-      : null;
+  const echo = trimmedEcho && isSafeEcho(trimmedEcho, lang) ? trimmedEcho : null;
 
   return {
     stages: raw.stages,
