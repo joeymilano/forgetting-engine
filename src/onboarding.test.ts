@@ -5,9 +5,12 @@ import { applyLang } from './i18n';
 import { initOnboarding } from './onboarding';
 
 const fixture = `
+  <main id="page-content"></main>
+  <aside id="already-inert"></aside>
   <button id="guide-replay" type="button"></button>
   <dialog id="ritual-guide">
     <p id="guide-progress"></p>
+    <button id="guide-skip" type="button"></button>
     <section data-guide-step="0">
       <p data-guide-kicker></p>
       <h2 data-guide-title></h2>
@@ -30,7 +33,6 @@ const fixture = `
       <h2 data-guide-title></h2>
       <p data-guide-copy></p>
     </section>
-    <button id="guide-skip" type="button"></button>
     <button id="guide-back" type="button"></button>
     <button id="guide-next" type="button"></button>
   </dialog>
@@ -46,6 +48,37 @@ function installDialogPolyfill(): void {
     configurable: true,
     value: () => dialog.removeAttribute('open'),
   });
+}
+
+function installFallbackDialog(mode: 'absent' | 'throwing'): void {
+  const dialog = document.getElementById('ritual-guide') as HTMLDialogElement;
+  Object.defineProperty(dialog, 'showModal', {
+    configurable: true,
+    value: mode === 'throwing'
+      ? () => {
+          throw new Error('showModal unavailable');
+        }
+      : undefined,
+  });
+  Object.defineProperty(dialog, 'close', {
+    configurable: true,
+    value: () => dialog.removeAttribute('open'),
+  });
+}
+
+function pressKey(
+  target: Element,
+  key: string,
+  shiftKey = false,
+): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', {
+    bubbles: true,
+    cancelable: true,
+    key,
+    shiftKey,
+  });
+  target.dispatchEvent(event);
+  return event;
 }
 
 function reveal(): void {
@@ -75,6 +108,9 @@ class FakeStorage {
 describe('ritual guide', () => {
   beforeEach(() => {
     document.body.innerHTML = fixture;
+    document.body.querySelectorAll<HTMLElement>(':scope > *').forEach((element) => {
+      element.inert = false;
+    });
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
       value: new FakeStorage(),
@@ -241,4 +277,67 @@ describe('ritual guide', () => {
       'fe-guide-complete',
     ]);
   });
+
+  it.each(['absent', 'throwing'] as const)(
+    'contains focus and restores background state when showModal is %s',
+    (mode) => {
+      installFallbackDialog(mode);
+      const page = document.getElementById('page-content') as HTMLElement;
+      const alreadyInert = document.getElementById('already-inert') as HTMLElement;
+      const replay = document.getElementById('guide-replay') as HTMLButtonElement;
+      const skip = document.getElementById('guide-skip') as HTMLButtonElement;
+      const next = document.getElementById('guide-next') as HTMLButtonElement;
+      alreadyInert.inert = true;
+      localStorage.setItem('fe-guide-complete', '1');
+      const guide = initOnboarding();
+
+      replay.focus();
+      replay.click();
+
+      expect(document.activeElement).toBe(skip);
+      expect(page.inert).toBe(true);
+      expect(replay.inert).toBe(true);
+      expect(alreadyInert.inert).toBe(true);
+
+      next.focus();
+      const forward = pressKey(next, 'Tab');
+      expect(forward.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(skip);
+
+      skip.focus();
+      const backward = pressKey(skip, 'Tab', true);
+      expect(backward.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(next);
+
+      guide.close();
+      expect(page.inert).toBe(false);
+      expect(replay.inert).toBe(false);
+      expect(alreadyInert.inert).toBe(true);
+      expect(document.activeElement).toBe(replay);
+    },
+  );
+
+  it.each(['absent', 'throwing'] as const)(
+    'preserves first-visit and replay Escape rules when showModal is %s',
+    (mode) => {
+      installFallbackDialog(mode);
+      const dialog = document.getElementById('ritual-guide') as HTMLDialogElement;
+      const replay = document.getElementById('guide-replay') as HTMLButtonElement;
+      const guide = initOnboarding();
+      reveal();
+
+      const forcedEscape = pressKey(dialog, 'Escape');
+      expect(forcedEscape.defaultPrevented).toBe(true);
+      expect(guide.isOpen()).toBe(true);
+      expect(localStorage.getItem('fe-guide-complete')).toBeNull();
+
+      guide.complete();
+      replay.focus();
+      replay.click();
+      const replayEscape = pressKey(dialog, 'Escape');
+      expect(replayEscape.defaultPrevented).toBe(true);
+      expect(guide.isOpen()).toBe(false);
+      expect(document.activeElement).toBe(replay);
+    },
+  );
 });

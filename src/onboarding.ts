@@ -30,17 +30,18 @@ function writePreference(key: string, value: string): void {
   }
 }
 
-function showDialog(dialog: HTMLDialogElement): void {
-  if (dialog.open || dialog.hasAttribute('open')) return;
+function showDialog(dialog: HTMLDialogElement): 'native' | 'fallback' {
+  if (dialog.open || dialog.hasAttribute('open')) return 'native';
   try {
     if (typeof dialog.showModal === 'function') {
       dialog.showModal();
-      return;
+      return 'native';
     }
   } catch {
     // Fall through for browsers that expose but cannot use the dialog API.
   }
   dialog.setAttribute('open', '');
+  return 'fallback';
 }
 
 function hideDialog(dialog: HTMLDialogElement): void {
@@ -73,11 +74,64 @@ export function initOnboarding(): OnboardingController {
   let revealHandled = false;
   let echoEnabled = readPreference(ECHO_KEY) !== '0';
   let restoreTarget: HTMLElement | null = null;
+  let fallbackMode = false;
+  let fallbackAriaModal: string | null = null;
+  let inertStates: { element: HTMLElement; inert: boolean }[] = [];
 
   if (echo) echo.checked = echoEnabled;
 
   const isOpen = (): boolean =>
     Boolean(dialog && (dialog.open || dialog.hasAttribute('open')));
+
+  const focusableElements = (): HTMLElement[] => {
+    if (!dialog) return [];
+    const selector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    return Array.from(dialog.querySelectorAll<HTMLElement>(selector)).filter(
+      (element) =>
+        !element.hidden &&
+        !element.closest('[hidden]') &&
+        element.getAttribute('aria-hidden') !== 'true',
+    );
+  };
+
+  const enableFallbackModal = (): void => {
+    if (!dialog) return;
+    fallbackMode = true;
+    fallbackAriaModal = dialog.getAttribute('aria-modal');
+    dialog.setAttribute('aria-modal', 'true');
+    inertStates = Array.from(document.body.children)
+      .filter(
+        (element): element is HTMLElement =>
+          element instanceof HTMLElement &&
+          element !== dialog &&
+          !element.contains(dialog) &&
+          'inert' in element,
+      )
+      .map((element) => ({ element, inert: element.inert }));
+    inertStates.forEach(({ element }) => {
+      element.inert = true;
+    });
+    focusableElements()[0]?.focus();
+  };
+
+  const disableFallbackModal = (): void => {
+    if (!dialog || !fallbackMode) return;
+    inertStates.forEach(({ element, inert }) => {
+      element.inert = inert;
+    });
+    inertStates = [];
+    if (fallbackAriaModal === null) dialog.removeAttribute('aria-modal');
+    else dialog.setAttribute('aria-modal', fallbackAriaModal);
+    fallbackAriaModal = null;
+    fallbackMode = false;
+  };
 
   const render = (): void => {
     const strings = t().guide;
@@ -139,12 +193,13 @@ export function initOnboarding(): OnboardingController {
       ? active
       : replay;
     render();
-    showDialog(dialog);
+    if (showDialog(dialog) === 'fallback') enableFallbackModal();
   };
 
   const close = (): void => {
     if (!dialog || !isOpen()) return;
     hideDialog(dialog);
+    disableFallbackModal();
     restoreTarget?.focus();
     restoreTarget = null;
   };
@@ -188,6 +243,30 @@ export function initOnboarding(): OnboardingController {
       return;
     }
     close();
+  });
+  dialog?.addEventListener('keydown', (event) => {
+    if (!fallbackMode || !isOpen()) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (!forcedFirstVisit) close();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = focusableElements();
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
   window.addEventListener(REVEAL_EVENT, onReveal);
 
