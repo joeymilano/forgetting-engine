@@ -19,7 +19,7 @@ export interface StageVisual {
 export const STAGES: StageVisual[] = [
   {
     index: 1,
-    name: '细节脱落',
+    name: 'sweet',
     taste: 'sweet',
     letterSpacing: '0.02em',
     blur: '0px',
@@ -30,7 +30,7 @@ export const STAGES: StageVisual[] = [
   },
   {
     index: 2,
-    name: '名字模糊',
+    name: 'hot',
     taste: 'hot',
     letterSpacing: '0.05em',
     blur: '0.2px',
@@ -41,7 +41,7 @@ export const STAGES: StageVisual[] = [
   },
   {
     index: 3,
-    name: '情绪褪色',
+    name: 'sour',
     taste: 'sour',
     letterSpacing: '0.09em',
     blur: '0.4px',
@@ -52,7 +52,7 @@ export const STAGES: StageVisual[] = [
   },
   {
     index: 4,
-    name: '语序松动',
+    name: 'bitter',
     taste: 'bitter',
     letterSpacing: '0.14em',
     blur: '0.7px',
@@ -63,7 +63,7 @@ export const STAGES: StageVisual[] = [
   },
   {
     index: 5,
-    name: '只剩碎片',
+    name: 'numb',
     taste: 'numb',
     letterSpacing: '0.22em',
     blur: '1px',
@@ -74,7 +74,7 @@ export const STAGES: StageVisual[] = [
   },
   {
     index: 6,
-    name: '最后的痕迹',
+    name: 'clear',
     taste: 'clear',
     letterSpacing: '0.46em',
     blur: '1.5px',
