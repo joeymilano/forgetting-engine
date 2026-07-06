@@ -562,6 +562,15 @@ function init() {
     const collapsed = panel?.classList.toggle('collapsed');
     mpToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   });
+  // Esc 收起已展开的记忆面板(可访问性:键盘用户可关闭浮层)
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const panel = document.getElementById('memory-panel');
+    if (panel && !panel.classList.contains('collapsed')) {
+      panel.classList.add('collapsed');
+      mpToggle?.setAttribute('aria-expanded', 'false');
+    }
+  });
 
   // 氛围主题(星河 / 雾海 / 极光):默认星河,localStorage 记忆
   const themeToggle = document.getElementById('theme-toggle');

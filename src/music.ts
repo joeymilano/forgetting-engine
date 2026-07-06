@@ -45,8 +45,12 @@ function ensureAudio(): HTMLAudioElement {
     audio.volume = 0;
     audio.preload = 'auto';
     audio.addEventListener('ended', () => {
-      // 自然结束 → 淡入下一首(音频已停,无需淡出)
-      if (!crossfading) void nextTrack(true);
+      // 自然结束 → 淡入下一首(音频已停,无需淡出)。
+      // 必须同时满足「仍在播放」且「未处于切换/淡出中」:
+      //  ① playing 守卫:手动暂停临近曲末时,toggle() 已先置 playing=false 再淡出,
+      //     防止 ended 触发后又自动续播(暂停后诡异复活);
+      //  ② crossfading 守卫:手动切歌淡出期间曲目自然结束,防止一次跳过两首。
+      if (playing && !crossfading) void nextTrack(true);
     });
   }
   return audio;

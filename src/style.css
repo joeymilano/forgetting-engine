@@ -1388,6 +1388,27 @@ html[lang='zh'] .foot-mark {
   }
 }
 
+/* 极短视口(横屏手机 / 软键盘弹起):撰写区 + 提交按钮可能高于视口。
+   body 默认 overflow:hidden 会将其裁切且无法触达,导致无法提交。
+   此处放开纵向滚动并让内容顶对齐,保证撰写/尾声视图始终可完整触达。
+   position:fixed 的背景层与 stage-view 不受影响,沉浸感保持。 */
+@media (max-height: 600px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .app {
+    height: auto;
+    min-height: 100dvh;
+    align-items: flex-start;
+    padding-top: 72px;
+    padding-bottom: 56px;
+  }
+}
+
 /* 减弱动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   .breathe,
