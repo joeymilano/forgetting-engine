@@ -32,7 +32,10 @@ interface FakeAudio extends AudioPort {
   end(): void
 }
 
-function fakeAudio(failures: string[] = []): FakeAudio {
+function fakeAudio(
+  failures: string[] = [],
+  playFailures: string[] = [],
+): FakeAudio {
   let ended = () => {}
   return {
     loads: [],
@@ -45,7 +48,7 @@ function fakeAudio(failures: string[] = []): FakeAudio {
     },
     async play() {
       this.playCount += 1
-      return true
+      return !playFailures.includes(this.loads[this.loads.length - 1] ?? '')
     },
     pause() {
       this.pauseCount += 1
@@ -174,6 +177,25 @@ describe('music player', () => {
       index: 1,
       playing: true,
       manuallySelected: false,
+    })
+  })
+
+  it('ignores an outgoing ended event during a manual track transition', async () => {
+    const audio = fakeAudio()
+    const player = createMusicPlayer(audio)
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    const changing = player.next()
+    audio.end()
+    await settle()
+    await changing
+
+    expect(player.getState()).toMatchObject({
+      index: 1,
+      playing: true,
+      manuallySelected: true,
     })
   })
 
@@ -307,6 +329,67 @@ describe('music player', () => {
     )
   })
 
+  it('treats a rejected play as a track failure and skips to an available track', async () => {
+    const audio = fakeAudio([], ['/music/a-kind-of-hope.mp3'])
+    const player = createMusicPlayer(audio)
+
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    expect(audio.loads).toEqual([
+      '/music/a-kind-of-hope.mp3',
+      '/music/the-long-dark.mp3',
+    ])
+    expect(player.getState()).toMatchObject({ index: 1, playing: true })
+    expect(document.querySelector('#music-error')?.textContent).toContain(
+      'Moved to the next one',
+    )
+  })
+
+  it('bounds rejected playback to three tracks before reporting unavailable', async () => {
+    const audio = fakeAudio([], [
+      '/music/a-kind-of-hope.mp3',
+      '/music/the-long-dark.mp3',
+      '/music/at-the-end-of-all-things.mp3',
+    ])
+    const player = createMusicPlayer(audio)
+
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    expect(audio.loads).toHaveLength(3)
+    expect(audio.playCount).toBe(3)
+    expect(player.getState().playing).toBe(false)
+    expect(document.querySelector('#music-error')?.textContent).toContain(
+      'Music is unavailable',
+    )
+  })
+
+  it('does not treat a stale rejected play as a media failure', async () => {
+    const audio = fakeAudio()
+    let resolvePlay!: (started: boolean) => void
+    audio.play = () =>
+      new Promise<boolean>((resolve) => {
+        resolvePlay = resolve
+      })
+    const player = createMusicPlayer(audio)
+
+    const starting = player.toggle()
+    await vi.advanceTimersByTimeAsync(0)
+    const stopping = player.toggle()
+    resolvePlay(false)
+    await settle()
+    await Promise.all([starting, stopping])
+
+    expect(player.getState()).toMatchObject({ index: 0, playing: false })
+    expect(audio.loads).toHaveLength(1)
+    expect(document.querySelector('#music-error')?.hasAttribute('hidden')).toBe(
+      true,
+    )
+  })
+
   it('opens from the existing toggle and closes without starting playback', () => {
     const audio = fakeAudio()
     createMusicPlayer(audio)
@@ -320,6 +403,23 @@ describe('music player', () => {
 
     document.querySelector<HTMLButtonElement>('#music-close')!.click()
     expect(panel.hidden).toBe(true)
+  })
+
+  it('closes an open panel with Escape and keeps toggle accessibility in sync', () => {
+    createMusicPlayer(fakeAudio())
+    const toggle = document.querySelector<HTMLButtonElement>('#music-toggle')!
+    const panel = document.querySelector<HTMLElement>('#music-player')!
+
+    toggle.click()
+    expect(panel.hidden).toBe(false)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.getAttribute('aria-label')).toBe('Close music player')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    expect(panel.hidden).toBe(true)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle.getAttribute('aria-label')).toBe('Open music player')
   })
 
   it('refreshes emotional copy and accessible labels when language changes', () => {

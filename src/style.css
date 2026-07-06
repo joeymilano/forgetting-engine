@@ -1430,6 +1430,12 @@ html[lang='zh'] .foot-mark {
   right: 34px;
   z-index: 18;
   width: min(330px, calc(100vw - 40px));
+  max-height: calc(
+    100dvh - 112px - env(safe-area-inset-bottom, 0px)
+  );
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 22px;
   border: 1px solid rgba(236, 230, 216, 0.17);
   border-radius: 18px;
@@ -1777,5 +1783,35 @@ html[lang='zh'] .ml-full {
     right: 14px;
     width: min(330px, calc(100vw - 28px));
     padding: 20px;
+  }
+}
+
+@media (max-height: 420px) {
+  .music-player {
+    top: auto;
+    right: 14px;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    width: min(300px, calc(100vw - 56px));
+    max-height: calc(
+      100dvh - 16px - env(safe-area-inset-bottom, 0px)
+    );
+    padding: 14px 18px;
+  }
+  .music-close {
+    top: 0;
+    right: 0;
+  }
+  .music-track-mood {
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+  .music-track-title {
+    font-size: 17px;
+  }
+  .music-track-artist {
+    margin-top: 3px;
+  }
+  .music-actions {
+    margin: 8px 0 6px;
   }
 }

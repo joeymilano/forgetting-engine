@@ -160,6 +160,7 @@ export function createMusicPlayer(
     manuallySelected: restored.manuallySelected,
   }
   let operation = 0
+  let selectionTransition: number | null = null
   let errorKind: 'skipped' | 'unavailable' | null = null
 
   const panel = document.getElementById('music-player') as HTMLElement | null
@@ -183,6 +184,7 @@ export function createMusicPlayer(
   const artist = document.getElementById('music-track-artist')
   const position = document.getElementById('music-track-position')
   const error = document.getElementById('music-error')
+  let panelOpen = panel ? !panel.hidden : false
 
   const render = () => {
     const strings = t()
@@ -216,8 +218,10 @@ export function createMusicPlayer(
     }
     if (panel) panel.setAttribute('aria-label', strings.musicPlayer)
     if (panelToggle) {
-      panelToggle.setAttribute('aria-label', strings.musicToggle)
-      panelToggle.setAttribute('title', strings.musicToggle)
+      const toggleLabel = panelOpen ? strings.musicClose : strings.musicToggle
+      panelToggle.setAttribute('aria-label', toggleLabel)
+      panelToggle.setAttribute('title', toggleLabel)
+      panelToggle.setAttribute('aria-expanded', panelOpen ? 'true' : 'false')
       panelToggle.classList.toggle('is-on', state.playing)
       panelToggle.classList.toggle('is-off', !state.playing)
     }
@@ -322,12 +326,17 @@ export function createMusicPlayer(
     if (!wasPlaying) return
 
     const token = ++operation
-    if (!natural) {
-      const completed = await fade(TARGET_VOLUME, 0, token)
-      if (!completed) return
-      audioPort.pause()
+    selectionTransition = token
+    try {
+      if (!natural) {
+        const completed = await fade(TARGET_VOLUME, 0, token)
+        if (!completed) return
+        audioPort.pause()
+      }
+      await startAvailable(token)
+    } finally {
+      if (selectionTransition === token) selectionTransition = null
     }
-    await startAvailable(token)
   }
 
   const controller: MusicController = {
@@ -371,8 +380,9 @@ export function createMusicPlayer(
 
   const setPanelOpen = (open: boolean) => {
     if (!panel) return
+    panelOpen = open
     panel.hidden = !open
-    panelToggle?.setAttribute('aria-expanded', open ? 'true' : 'false')
+    render()
     if (open) play?.focus()
   }
 
@@ -380,6 +390,11 @@ export function createMusicPlayer(
     setPanelOpen(panel?.hidden ?? false)
   })
   close?.addEventListener('click', () => {
+    setPanelOpen(false)
+    panelToggle?.focus()
+  })
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !panelOpen) return
     setPanelOpen(false)
     panelToggle?.focus()
   })
@@ -394,7 +409,7 @@ export function createMusicPlayer(
   })
   window.addEventListener('fe:langchange', render)
   audioPort.onEnded(() => {
-    if (!state.playing) return
+    if (!state.playing || selectionTransition !== null) return
     const advanced = {
       ...state,
       index: (state.index + 1) % TRACKS.length,
