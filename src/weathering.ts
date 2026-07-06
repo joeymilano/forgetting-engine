@@ -357,8 +357,6 @@ export class Weathering {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    let transitionDone = elapsed >= TOTAL_DUR + 0.2;
-
     // —— 过渡粒子 ——
     if (this.tParticles.length) {
       ctx.globalCompositeOperation = 'lighter';
@@ -376,8 +374,6 @@ export class Weathering {
       }
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
-    } else if (!this.ashParticles.length) {
-      transitionDone = true;
     }
 
     // —— 灰烬 ——
@@ -402,23 +398,29 @@ export class Weathering {
       ctx.globalAlpha = 1;
     }
 
-    const hasWork =
-      (this.tParticles.length > 0 && elapsed < TOTAL_DUR + 0.3) ||
-      this.ashParticles.length > 0;
+    // 过渡粒子是否仍在进行(灰烬是 stage4+ 常驻的独立装饰,不计入转场时长)
+    const transitionActive =
+      this.tParticles.length > 0 && elapsed < TOTAL_DUR + 0.3;
 
-    if (!hasWork) {
+    // 过渡结束 → 回收过渡粒子,并立即兑现转场 Promise。
+    // 关键:onDone 绝不能被灰烬阻塞 —— 否则 stage4+(灰烬常驻)时
+    // await weathering.transition() 永不返回,isTransitioning 卡死,
+    // 正文永久隐藏、按钮点不动、循环空转导致背景层灰块闪烁。
+    if (!transitionActive && this.tParticles.length) {
+      this.recycleTransition();
+    }
+    if (!transitionActive && this.onDone) {
+      const cb = this.onDone;
+      this.onDone = undefined;
+      cb();
+    }
+
+    // 转场与灰烬都无事可做时才真正停机并清空画布
+    if (!transitionActive && this.ashParticles.length === 0) {
       this.running = false;
       this.rafId = 0;
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      const cb = this.onDone;
-      this.onDone = undefined;
-      if (cb) cb();
       return;
-    }
-
-    if (transitionDone && this.tParticles.length) {
-      // 过渡完成,回收过渡粒子(灰烬可能仍在)
-      this.recycleTransition();
     }
 
     this.rafId = requestAnimationFrame(this.tick);
@@ -475,6 +477,12 @@ export class Weathering {
 
   // ---------- 灰烬(STAGE_4 后) ----------
   startAsh(getEl: () => HTMLElement | null) {
+    // 先清除已有的定时链,避免 stage4→5→6 反复调用导致灰烬定时器叠加、
+    // 生成速率成倍累积(越往后灰块越密、越易闪烁)。
+    if (this.ashTimer) {
+      clearTimeout(this.ashTimer);
+      this.ashTimer = null;
+    }
     this.ashGetEl = getEl;
     this.scheduleAsh();
   }
