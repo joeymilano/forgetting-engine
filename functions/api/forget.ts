@@ -35,6 +35,7 @@ function checkRate(ip: string): boolean {
 import {
   echoEnabledFor,
   promptFor,
+  upstreamStatusFor,
   userPromptFor,
 } from '../../prompt.js';
 
@@ -110,7 +111,10 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
 
     if (!resp.ok) {
       const t = await resp.text();
-      return json({ error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) }, 502);
+      return json(
+        { error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) },
+        upstreamStatusFor(resp.status),
+      );
     }
 
     const data: any = await resp.json();

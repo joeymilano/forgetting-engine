@@ -32,3 +32,19 @@ test('the production HTML loads bundled JavaScript instead of TypeScript source'
   assert.ok(scriptSrc, 'production HTML must contain a bundled JavaScript entry');
   assert.equal(existsSync(join(root, 'dist', scriptSrc.replace(/^\//, ''))), true);
 });
+
+test('every API adapter preserves actionable upstream status codes', () => {
+  for (const path of ['functions/api/forget.ts', 'api/forget.ts', 'server.mjs']) {
+    const source = readFileSync(join(root, path), 'utf8');
+    assert.match(source, /upstreamStatusFor\(resp\.status\)/, path);
+  }
+});
+
+test('the Vercel adapter matches the Coding Plan endpoint and handles bad JSON bodies', () => {
+  const source = readFileSync(join(root, 'api/forget.ts'), 'utf8');
+
+  assert.match(source, /GLM_BASE_URL/);
+  assert.match(source, /https:\/\/open\.bigmodel\.cn\/api\/coding\/paas\/v4/);
+  assert.match(source, /process\.env\.GLM_MODEL \|\| 'glm-4\.6'/);
+  assert.match(source, /\{ error: 'BAD_BODY' \}/);
+});

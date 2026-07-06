@@ -88,6 +88,61 @@ Model suffix`;
       source: 'ai',
     });
   });
+
+  it.each([
+    {
+      name: 'equal adjacent lengths',
+      lang: 'en' as const,
+      invalidStages: [
+        'abcdefghij',
+        'ABCDEFGHIJ',
+        'abcdefgh',
+        'abcdef',
+        'abcd',
+        '…',
+      ],
+    },
+    {
+      name: 'an overlong English final trace',
+      lang: 'en' as const,
+      invalidStages: [
+        'a'.repeat(40),
+        'b'.repeat(30),
+        'c'.repeat(20),
+        'd'.repeat(12),
+        'e'.repeat(8),
+        'f'.repeat(7),
+      ],
+    },
+    {
+      name: 'a Unicode stage-five ratio over half the first stage',
+      lang: 'zh' as const,
+      invalidStages: [
+        '🌙'.repeat(10),
+        '月'.repeat(9),
+        '酸'.repeat(8),
+        '苦'.repeat(7),
+        '麻'.repeat(6),
+        '。',
+      ],
+    },
+    {
+      name: 'nondecreasing adjacent Unicode traces',
+      lang: 'zh' as const,
+      invalidStages: [
+        '🌙'.repeat(10),
+        '月'.repeat(8),
+        '酸'.repeat(6),
+        '苦'.repeat(4),
+        '麻麻',
+        '清清',
+      ],
+    },
+  ])('rejects $name', ({ invalidStages, lang }) => {
+    expect(() =>
+      parseExperiencePayload(JSON.stringify({ stages: invalidStages }), lang),
+    ).toThrowError('INVALID_STAGES');
+  });
 });
 
 describe('generateExperience', () => {
@@ -134,32 +189,82 @@ describe('generateExperience', () => {
   });
 
   it('suppresses an upstream echo when the preference is disabled', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            content: JSON.stringify({
-              stages,
-              emotion: 'release',
-              soundtrack: 'looking-back',
-              pacing: 'steady',
-              echo: 'The memory can become quiet.',
-            }),
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: JSON.stringify({
+            stages,
+            emotion: 'release',
+            soundtrack: 'looking-back',
+            pacing: 'steady',
+            echo: 'The memory can become quiet.',
           }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     );
+    vi.stubGlobal('fetch', fetchMock);
 
     await expect(
       generateExperience('A sufficiently long memory for the API request.', 'en', false),
     ).resolves.toMatchObject({ echo: null });
+    expect(
+      JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string),
+    ).toMatchObject({ echoEnabled: false });
   });
 
-  it('returns the complete fallback experience after a fatal request failure', async () => {
+  it.each([401, 429])(
+    'returns fallback after one attempt for fatal HTTP %s',
+    async (status) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response('', { status }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await generateExperience(
+        'A sufficiently long memory that can be weathered into six stages.',
+        'en',
+        true,
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({
+        emotion: 'release',
+        soundtrack: 'looking-back',
+        pacing: 'steady',
+        echo: null,
+        source: 'fallback',
+      });
+    },
+  );
+
+  it('retries a server failure once before returning fallback', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 429 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('', { status: 502 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await generateExperience(
+      'A sufficiently long memory that can be weathered into six stages.',
+      'en',
+      true,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries malformed response JSON once before returning fallback', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response('not json', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await generateExperience(
@@ -168,14 +273,38 @@ describe('generateExperience', () => {
       true,
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({
-      emotion: 'release',
-      soundtrack: 'looking-back',
-      pacing: 'steady',
-      echo: null,
-      source: 'fallback',
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.source).toBe('fallback');
     expect(result.stages).toHaveLength(6);
+  });
+
+  it('retries an invalid stage shape once before returning fallback', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const invalidStages = [
+      'same length',
+      'equal size!',
+      'shorter',
+      'short',
+      'tiny',
+      '…',
+    ];
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: JSON.stringify({ stages: invalidStages }),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await generateExperience(
+      'A sufficiently long memory that can be weathered into six stages.',
+      'en',
+      true,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.source).toBe('fallback');
   });
 });

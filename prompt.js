@@ -19,13 +19,17 @@ stages 必须恰好有 6 项，依次对应：
 - pacing 只能是 "gentle"、"steady"、"deep"。
 - echo 只能是一个安全的中性句子或 null。
 
-【事实与安全边界】
+【stages 叙事忠实度】
+- stages 可以并应保留原记忆的叙述人称，包括第一人称。
+- stages 只可删减或重组原记忆中的事实，不得编造人物、事件、动机或细节。
+
+【仅适用于 echo 的安全边界】
 - 不得诊断访问者或记忆中的任何人。
 - 不得告诉访问者应该感受什么或应该做什么。
 - 不得承诺疗愈、释怀或康复。
 - 不得编造人物、事件、动机或细节。
 - 不得模仿治疗师、已故人物或记忆中任何具名人物。
-- 不得使用第一或第二人称，不得评价、劝慰或替任何人发言。
+- echo 不得使用第一或第二人称，不得评价、劝慰或替任何人发言。
 - echo 仅可用以下中性、非人格化开头之一：「那段记忆」「那件事」「那个瞬间」「曾经」「前尘」「有些事」。
 - echo 必须是单句、最多 42 个可见字符，并遵守以上全部安全边界。
 - 如果用户消息写明 "Personalized final echo: disabled; return null"，echo 必须为 null。
@@ -51,13 +55,17 @@ Use exactly these keys, with no additions, omissions, or renaming:
 - pacing must be one of "gentle", "steady", "deep".
 - echo must be one safe neutral sentence or null.
 
-[FACTUAL AND SAFETY BOUNDARIES]
+[STAGE NARRATIVE FIDELITY]
+- stages may and should preserve the memory's original narrative voice, including first person.
+- stages may only remove or rearrange facts from the memory and must not invent people, events, motives, or details.
+
+[ECHO-ONLY SAFETY BOUNDARIES]
 - Never diagnose the visitor or anyone in the memory.
 - Never tell the visitor what to feel or do.
 - Never promise healing, closure, or recovery.
 - Never invent people, events, motives, or details.
 - Never imitate a therapist, a deceased person, or any named person from the memory.
-- No first-person or second-person language, commentary, reassurance, judgment, or speaking for anyone.
+- echo must use no first-person or second-person language, commentary, reassurance, judgment, or speaking for anyone.
 - echo may start only with one of these neutral impersonal allowlisted starters: "What happened", "The memory", "That memory", "That moment", "The past", "Some things".
 - echo must be one sentence, at most 140 visible characters, and obey every safety boundary above.
 - If the user message says "Personalized final echo: disabled; return null", echo must be null.
@@ -76,6 +84,10 @@ export function userPromptFor(memory, echoEnabled) {
 
 export function echoEnabledFor(body) {
   return body?.echoEnabled !== false;
+}
+
+export function upstreamStatusFor(status) {
+  return [400, 401, 403, 404, 429].includes(status) ? status : 502;
 }
 
 export const SYSTEM_PROMPT = SYSTEM_PROMPT_ZH;

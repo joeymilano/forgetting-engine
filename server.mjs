@@ -29,7 +29,12 @@ const MODEL = process.env.GLM_MODEL || 'glm-4.6';
 const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 // —— System Prompt(双语,按 body.lang 选择) ——
-import { echoEnabledFor, promptFor, userPromptFor } from './prompt.js';
+import {
+  echoEnabledFor,
+  promptFor,
+  upstreamStatusFor,
+  userPromptFor,
+} from './prompt.js';
 
 // —— 内存限流:每 IP 每小时 10 次 ——
 const WINDOW = 60 * 60 * 1000;
@@ -135,7 +140,11 @@ const server = http.createServer(async (req, res) => {
 
     if (!resp.ok) {
       const t = await resp.text();
-      send(res, 502, { error: 'GLM_ERROR', status: resp.status, detail: t.slice(0, 200) });
+      send(res, upstreamStatusFor(resp.status), {
+        error: 'GLM_ERROR',
+        status: resp.status,
+        detail: t.slice(0, 200),
+      });
       return;
     }
 

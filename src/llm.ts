@@ -43,6 +43,32 @@ function objectCandidates(raw: string): string[] {
   return candidates;
 }
 
+function validateStageShape(stages: unknown, lang: Lang): asserts stages is string[] {
+  if (
+    !Array.isArray(stages) ||
+    stages.length !== 6 ||
+    !stages.every(
+      (stage) => typeof stage === 'string' && stage.trim().length > 0,
+    )
+  ) {
+    throw new Error('INVALID_STAGES');
+  }
+
+  const lengths = stages.map((stage) => Array.from(stage).length);
+  const strictlyDecreasing = lengths.every(
+    (length, index) => index === 0 || length < lengths[index - 1],
+  );
+  const finalLimit = lang === 'zh' ? 4 : 6;
+  if (
+    !strictlyDecreasing ||
+    lengths[5] > finalLimit ||
+    lengths[4] > lengths[0] * 0.5 ||
+    lengths[5] > lengths[0] * 0.2
+  ) {
+    throw new Error('INVALID_STAGES');
+  }
+}
+
 export function parseExperiencePayload(
   raw: string,
   lang: Lang,
@@ -58,7 +84,9 @@ export function parseExperiencePayload(
         continue;
       }
       try {
-        return normalizeExperience(parsed as Record<string, unknown>, lang);
+        const record = parsed as Record<string, unknown>;
+        validateStageShape(record.stages, lang);
+        return normalizeExperience(record, lang);
       } catch (error) {
         if (error instanceof Error && error.message === 'INVALID_STAGES') {
           invalidStages = error;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error prompt.js is the intentionally shared ESM runtime module.
-import { echoEnabledFor, promptFor, userPromptFor } from '../prompt.js';
+import { echoEnabledFor, promptFor, upstreamStatusFor, userPromptFor } from '../prompt.js';
 
 describe('six-sip model prompts', () => {
   it.each(['zh', 'en'] as const)(
@@ -43,5 +43,24 @@ describe('six-sip model prompts', () => {
     expect(promptFor('zh')).toContain(
       '不得模仿治疗师、已故人物或记忆中任何具名人物。',
     );
+  });
+
+  it('scopes the impersonal safety rules to echo while preserving stage voice', () => {
+    expect(promptFor('en')).toContain('[ECHO-ONLY SAFETY BOUNDARIES]');
+    expect(promptFor('en')).toContain(
+      "stages may and should preserve the memory's original narrative voice, including first person.",
+    );
+    expect(promptFor('zh')).toContain('【仅适用于 echo 的安全边界】');
+    expect(promptFor('zh')).toContain(
+      'stages 可以并应保留原记忆的叙述人称，包括第一人称。',
+    );
+  });
+
+  it('passes actionable upstream statuses through and maps server errors to 502', () => {
+    for (const status of [400, 401, 403, 404, 429]) {
+      expect(upstreamStatusFor(status)).toBe(status);
+    }
+    expect(upstreamStatusFor(500)).toBe(502);
+    expect(upstreamStatusFor(503)).toBe(502);
   });
 });
