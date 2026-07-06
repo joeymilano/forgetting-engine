@@ -2163,8 +2163,25 @@ html[lang='zh'] .ml-full {
     bottom: 64px;
     transform: none;
   }
+  /* 展开时,面板体改为贴底部的居中浮层(bottom sheet),而不是紧贴 toggle 一侧。
+     窄屏下固定宽度的侧边面板会横向盖住居中的舞台/忘记按钮;展开时既然用户
+     正在查看记忆列表,让它整体升到按钮下方的独立区域,避免二者互相遮挡。 */
   .memory-panel-body {
-    width: 240px;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-width: none;
+    max-height: 42vh;
+    margin-right: 0;
+    transform: translateY(14px);
+  }
+  .memory-panel.collapsed .memory-panel-body {
+    transform: translateY(14px);
+  }
+  .memory-panel:not(.collapsed) .memory-panel-body {
+    transform: translateY(0);
   }
   .music-player {
     top: 78px;
