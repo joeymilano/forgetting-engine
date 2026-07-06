@@ -54,6 +54,11 @@ const TARGET_VOLUME = 0.36
 const FADE_STEPS = 4
 const FADE_INTERVAL = 25
 
+interface StoredSelection {
+  id: TrackId
+  manuallySelected: boolean
+}
+
 export interface AudioPort {
   load(src: string): Promise<boolean>
   play(): Promise<boolean>
@@ -112,19 +117,31 @@ class HtmlAudioPort implements AudioPort {
   }
 }
 
-function readStoredIndex(): number {
+function readStoredSelection(): {
+  index: number
+  manuallySelected: boolean
+} {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    const index = TRACKS.findIndex((track) => track.id === stored)
-    return index >= 0 ? index : 0
+    if (!stored) return { index: 0, manuallySelected: false }
+    const parsed = JSON.parse(stored) as Partial<StoredSelection>
+    const index = TRACKS.findIndex((track) => track.id === parsed.id)
+    if (index < 0 || typeof parsed.manuallySelected !== 'boolean') {
+      return { index: 0, manuallySelected: false }
+    }
+    return { index, manuallySelected: parsed.manuallySelected }
   } catch {
-    return 0
+    return { index: 0, manuallySelected: false }
   }
 }
 
-function persistTrack(index: number): void {
+function persistTrack(state: MusicState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, TRACKS[index]?.id ?? TRACKS[0].id)
+    const selection: StoredSelection = {
+      id: TRACKS[state.index]?.id ?? TRACKS[0].id,
+      manuallySelected: state.manuallySelected,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(selection))
   } catch {
     // Storage can be unavailable in private or hardened browsing contexts.
   }
@@ -137,12 +154,13 @@ function wait(ms: number): Promise<void> {
 export function createMusicPlayer(
   audioPort: AudioPort = new HtmlAudioPort(),
 ): MusicController {
-  const restoredIndex = readStoredIndex()
+  const restored = readStoredSelection()
   let state: MusicState = {
-    ...createMusicState(restoredIndex),
-    manuallySelected: restoredIndex !== 0,
+    ...createMusicState(restored.index),
+    manuallySelected: restored.manuallySelected,
   }
   let operation = 0
+  let errorKind: 'skipped' | 'unavailable' | null = null
 
   const panel = document.getElementById('music-player') as HTMLElement | null
   const panelToggle = document.getElementById(
@@ -203,18 +221,39 @@ export function createMusicPlayer(
       panelToggle.classList.toggle('is-on', state.playing)
       panelToggle.classList.toggle('is-off', !state.playing)
     }
+    if (error) {
+      error.hidden = errorKind === null
+      error.textContent =
+        errorKind === 'skipped'
+          ? strings.musicSkipped
+          : errorKind === 'unavailable'
+            ? strings.musicUnavailable
+            : ''
+    }
   }
 
   const hideError = () => {
-    if (!error) return
-    error.hidden = true
-    error.textContent = ''
+    errorKind = null
+    if (error) {
+      error.hidden = true
+      error.textContent = ''
+    }
+  }
+
+  const showSkipped = () => {
+    errorKind = 'skipped'
+    if (error) {
+      error.hidden = false
+      error.textContent = t().musicSkipped
+    }
   }
 
   const showUnavailable = () => {
-    if (!error) return
-    error.hidden = false
-    error.textContent = t().musicUnavailable
+    errorKind = 'unavailable'
+    if (error) {
+      error.hidden = false
+      error.textContent = t().musicUnavailable
+    }
   }
 
   const fade = async (
@@ -245,7 +284,8 @@ export function createMusicPlayer(
       }
 
       if (loaded && started) {
-        hideError()
+        if (failed.size > 0) showSkipped()
+        else hideError()
         state = { ...state, playing: true }
         render()
         await fade(0, TARGET_VOLUME, token)
@@ -258,7 +298,7 @@ export function createMusicPlayer(
         index: (state.index + 1) % TRACKS.length,
         playing: true,
       }
-      persistTrack(state.index)
+      persistTrack(state)
       render()
     }
 
@@ -276,7 +316,8 @@ export function createMusicPlayer(
   ): Promise<void> => {
     const wasPlaying = state.playing
     state = nextState
-    persistTrack(state.index)
+    if (!natural) hideError()
+    persistTrack(state)
     render()
     if (!wasPlaying) return
 

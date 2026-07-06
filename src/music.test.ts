@@ -197,7 +197,59 @@ describe('music player', () => {
     expect(createMusicPlayer(fakeAudio()).getState().index).toBe(0)
   })
 
-  it('skips one failed track and plays the next available track', async () => {
+  it('persists an explicit manual selection of the first track as manual', async () => {
+    const first = createMusicPlayer(fakeAudio())
+    await first.previous()
+    await first.next()
+    expect(first.getState()).toMatchObject({
+      index: 0,
+      manuallySelected: true,
+    })
+
+    document.body.innerHTML = fixture
+    const restored = createMusicPlayer(fakeAudio())
+
+    expect(restored.getState()).toMatchObject({
+      index: 0,
+      manuallySelected: true,
+    })
+    restored.applySuggestedTrack('far-shore')
+    expect(restored.getState().index).toBe(0)
+  })
+
+  it('persists a suggested selection without treating it as manual', () => {
+    const first = createMusicPlayer(fakeAudio())
+    first.applySuggestedTrack('far-shore')
+
+    document.body.innerHTML = fixture
+    const restored = createMusicPlayer(fakeAudio())
+
+    expect(restored.getState()).toMatchObject({
+      index: 2,
+      manuallySelected: false,
+    })
+  })
+
+  it('persists a natural advance without treating it as manual', async () => {
+    const audio = fakeAudio()
+    const first = createMusicPlayer(audio)
+    const starting = first.toggle()
+    await settle()
+    await starting
+    audio.end()
+    await settle()
+
+    document.body.innerHTML = fixture
+    const restored = createMusicPlayer(fakeAudio())
+
+    expect(restored.getState()).toMatchObject({
+      index: 1,
+      manuallySelected: false,
+      playing: false,
+    })
+  })
+
+  it('skips one failed track, plays the next, and keeps quiet feedback visible', async () => {
     const audio = fakeAudio(['/music/a-kind-of-hope.mp3'])
     const player = createMusicPlayer(audio)
 
@@ -211,7 +263,25 @@ describe('music player', () => {
     ])
     expect(player.getState()).toMatchObject({ index: 1, playing: true })
     expect(document.querySelector('#music-error')?.hasAttribute('hidden')).toBe(
-      true,
+      false,
+    )
+    expect(document.querySelector('#music-error')?.textContent).toContain(
+      'Moved to the next one',
+    )
+  })
+
+  it('localizes visible skipped-track feedback when language changes', async () => {
+    const player = createMusicPlayer(
+      fakeAudio(['/music/a-kind-of-hope.mp3']),
+    )
+    const starting = player.toggle()
+    await settle()
+    await starting
+
+    applyLang('zh')
+
+    expect(document.querySelector('#music-error')?.textContent).toContain(
+      '已为你切换到下一首',
     )
   })
 

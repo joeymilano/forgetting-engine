@@ -31,6 +31,7 @@ export interface Strings {
   musicPause: string;
   musicNext: string;
   musicCredits: string;
+  musicSkipped: string;
   musicUnavailable: string;
 }
 
@@ -73,6 +74,7 @@ const STRINGS: Record<Lang, Strings> = {
     musicPause: 'Pause music',
     musicNext: 'Next track',
     musicCredits: 'Music credits',
+    musicSkipped: 'That track could not be loaded. Moved to the next one.',
     musicUnavailable: 'Music is unavailable right now. You may try again.',
   },
   zh: {
@@ -99,6 +101,7 @@ const STRINGS: Record<Lang, Strings> = {
     musicPause: '暂停音乐',
     musicNext: '下一首',
     musicCredits: '音乐鸣谢',
+    musicSkipped: '这首音乐暂时无法加载，已为你切换到下一首。',
     musicUnavailable: '音乐暂时无法播放，你可以稍后重试。',
   },
 };
