@@ -798,7 +798,10 @@ body[data-theme='aurora'] .bg-bokeh::after {
   animation: veil-lift 1.8s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
 }
 @keyframes veil-lift {
-  to { opacity: 0; }
+  /* 动画结束时同时置 visibility:hidden(fill:forwards 保持):
+     否则这块全屏黑色遮罩会以 opacity:0 常驻合成层树,
+     合成层重建的瞬间可能把它误闪出来(黑块)。 */
+  to { opacity: 0; visibility: hidden; }
 }
 
 .entrance-spark {
@@ -824,7 +827,7 @@ body[data-theme='aurora'] .bg-bokeh::after {
 @keyframes spark-bloom {
   0% { opacity: 0; transform: scale(0.2); }
   18% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(10); }
+  100% { opacity: 0; transform: scale(10); visibility: hidden; }
 }
 
 body:not(.revealed) .writing-view > .memory-input,
@@ -1098,12 +1101,16 @@ html[lang='zh'] .round-btn:hover:not(:disabled) {
   opacity: 0;
   transition: opacity 0.5s ease;
   animation: border-sweep 4s linear infinite;
+  /* 非 hover 时暂停:opacity:0 的流光动画仍会每帧重绘按钮图层,
+     白白制造持续的绘制失效(转场时与粒子层叠加加剧闪烁) */
+  animation-play-state: paused;
   pointer-events: none;
   z-index: 1;
 }
 .submit-btn:hover:not(:disabled)::before,
 .stage-btn:hover:not(:disabled)::before {
   opacity: 1;
+  animation-play-state: running;
 }
 @keyframes border-sweep {
   0% {
@@ -1124,7 +1131,10 @@ html[lang='zh'] .round-btn:hover:not(:disabled) {
   transform: translate(-50%, -50%);
   width: min(560px, calc(100vw - 56px));
   text-align: center;
-  white-space: pre;
+  /* pre-wrap:保留刻意的换行与空格,同时允许长句在窄屏(移动端)自动折行,
+     避免正文溢出屏幕两侧。 */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   color: var(--ink);
   font-size: calc(var(--font-size) * var(--fs-scale));
   line-height: var(--lh);
@@ -1405,6 +1415,14 @@ html[lang='zh'] .foot-mark {
   .bg-moonlight::after {
     width: 64px;
     height: 64px;
+  }
+}
+
+/* 窄屏:顶部控件已占满整行,居中的品牌字标会与其重叠。
+   品牌字标为装饰性(页脚亦有同名铭文),窄屏下隐藏以让出空间。 */
+@media (max-width: 640px) {
+  .brand {
+    display: none;
   }
 }
 
@@ -1978,6 +1996,13 @@ html[lang='zh'] .guide-kicker {
   display: flex;
   align-items: flex-start;
   direction: rtl; /* 让 body 在 toggle 左侧 */
+  /* 容器仅作布局用途:透明留白(尤其折叠时占位的 body)不应吞掉点击,
+     否则移动端会挡住居中的“忘记/再饮一口”按钮。交互元素各自重新开启点击。 */
+  pointer-events: none;
+}
+.memory-panel-toggle,
+.memory-panel-body {
+  pointer-events: auto;
 }
 .memory-panel-toggle {
   appearance: none;
