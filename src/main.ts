@@ -667,7 +667,11 @@ async function releaseMistHold(): Promise<void> {
   }
   setMistProgress(1);
   await advanceStage();
-  setMistProgress(0);
+  if (activeMode() === 'mist') {
+    setMistProgress(0);
+  } else {
+    refreshStageButtonAccessibility();
+  }
 }
 
 async function advanceStage(): Promise<void> {
