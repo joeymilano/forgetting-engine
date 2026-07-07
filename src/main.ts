@@ -13,6 +13,8 @@ import { initAmbient, setAmbientField, setAmbientTheme } from './ambient';
 import {
   type AmbientMode,
   getModeBehavior,
+  isMistReady,
+  mistHoldProgress,
   nextAmbientMode,
   normalizeAmbientMode,
 } from './modes';
@@ -56,6 +58,9 @@ let state: State = 'IDLE';
 let stages: string[] = [];
 let currentIdx = 0; // 1..SIP_COUNT(6）
 let isTransitioning = false;
+let mistHoldStart = 0;
+let mistHoldFrame = 0;
+let mistHolding = false;
 let sealingTimers: ReturnType<typeof setTimeout>[] = [];
 let epilogueTimers: ReturnType<typeof setTimeout>[] = [];
 
@@ -418,7 +423,10 @@ async function gotoStage(nextIdx: number) {
 
 function updateStageChrome(idx: number) {
   const label = stageBtn.querySelector<HTMLElement>('.btn-label');
-  if (label) label.textContent = t().stageButtons[idx - 1];
+  const actionLabel = t().stageButtons[idx - 1];
+  if (label) label.textContent = actionLabel;
+  if (activeMode() === 'mist') setMistProgress(0);
+  else setStageButtonActionLabel(actionLabel);
   stageBtn.disabled = false;
   updateProgress(idx);
   if (idx >= 4) weathering.startAsh(() => stageText);
@@ -491,6 +499,7 @@ async function reset() {
   stageBtn.hidden = true;
   loadingLine.hidden = true;
 
+  stopMistHold(true);
   enterIdle();
   app.classList.remove('is-hidden');
 }
@@ -512,9 +521,38 @@ submitBtn.addEventListener('click', () => {
   if (!submitBtn.disabled && !isTransitioning) enterSealing();
 });
 stageBtn.addEventListener('click', async () => {
-  if (isTransitioning) return;
-  if (currentIdx < SIP_COUNT) await gotoStage(currentIdx + 1);
-  else await enterEpilogue();
+  if (activeMode() !== 'stardust') return;
+  await advanceStage();
+});
+stageBtn.addEventListener('pointerdown', (e) => {
+  if (activeMode() !== 'mist') return;
+  e.preventDefault();
+  stageBtn.setPointerCapture(e.pointerId);
+  startMistHold();
+});
+stageBtn.addEventListener('pointerup', async (e) => {
+  if (activeMode() !== 'mist') return;
+  e.preventDefault();
+  if (stageBtn.hasPointerCapture(e.pointerId)) {
+    stageBtn.releasePointerCapture(e.pointerId);
+  }
+  await releaseMistHold();
+});
+stageBtn.addEventListener('pointercancel', () => {
+  if (activeMode() !== 'mist') return;
+  stopMistHold(true);
+});
+stageBtn.addEventListener('keydown', (e) => {
+  if (activeMode() !== 'mist') return;
+  if (e.key !== ' ' && e.key !== 'Enter') return;
+  e.preventDefault();
+  startMistHold();
+});
+stageBtn.addEventListener('keyup', async (e) => {
+  if (activeMode() !== 'mist') return;
+  if (e.key !== ' ' && e.key !== 'Enter') return;
+  e.preventDefault();
+  await releaseMistHold();
 });
 resetLink.addEventListener('click', (e) => {
   e.preventDefault();
@@ -533,6 +571,7 @@ function detectTheme(): AmbientMode {
 }
 
 function applyTheme(theme: AmbientMode): void {
+  stopMistHold(true);
   const behavior = getModeBehavior(theme);
   document.body.dataset.theme = theme;
   document.body.dataset.mode = theme;
@@ -548,11 +587,93 @@ function applyTheme(theme: AmbientMode): void {
   document.querySelectorAll<HTMLElement>('.theme-dots i').forEach((el) => {
     el.classList.toggle('active', el.dataset.theme === theme);
   });
+  refreshStageButtonAccessibility();
 }
 
 function cycleTheme(): void {
-  const cur = normalizeAmbientMode(document.body.dataset.theme);
+  const cur = activeMode();
   applyTheme(nextAmbientMode(cur));
+}
+
+function activeMode(): AmbientMode {
+  return normalizeAmbientMode(document.body.dataset.theme);
+}
+
+function currentStageButtonLabel(): string {
+  const idx = currentIdx >= 1 && currentIdx <= SIP_COUNT ? currentIdx : 1;
+  return t().stageButtons[idx - 1];
+}
+
+function setStageButtonActionLabel(label: string): void {
+  stageBtn.setAttribute('aria-label', label);
+  stageBtn.setAttribute('title', label);
+}
+
+function refreshStageButtonAccessibility(): void {
+  if (activeMode() === 'mist') {
+    const progress =
+      Number.parseFloat(document.body.style.getPropertyValue('--mist-progress')) || 0;
+    setMistProgress(progress);
+    return;
+  }
+  setStageButtonActionLabel(currentStageButtonLabel());
+}
+
+function setMistProgress(value: number): void {
+  const progress = Math.max(0, Math.min(1, value));
+  document.body.style.setProperty('--mist-progress', progress.toFixed(3));
+  stageBtn.dataset.mistReady = progress >= 1 ? 'true' : 'false';
+  const hints = t().modeHints;
+  const label =
+    progress >= 1 ? hints.mistReady : progress > 0 ? hints.mistHolding : hints.mistIdle;
+  stageBtn.setAttribute('aria-label', label);
+  stageBtn.setAttribute('title', label);
+}
+
+function stopMistHold(resetProgress: boolean): number {
+  if (mistHoldFrame) cancelAnimationFrame(mistHoldFrame);
+  mistHoldFrame = 0;
+  mistHolding = false;
+  stageBtn.dataset.mistHolding = 'false';
+  const elapsed = mistHoldStart ? performance.now() - mistHoldStart : 0;
+  mistHoldStart = 0;
+  if (resetProgress) setMistProgress(0);
+  return elapsed;
+}
+
+function tickMistHold(): void {
+  if (!mistHolding) return;
+  const elapsed = performance.now() - mistHoldStart;
+  setMistProgress(mistHoldProgress(elapsed));
+  mistHoldFrame = requestAnimationFrame(tickMistHold);
+}
+
+function startMistHold(): void {
+  if (isTransitioning || mistHolding || activeMode() !== 'mist') return;
+  mistHolding = true;
+  mistHoldStart = performance.now();
+  stageBtn.dataset.mistHolding = 'true';
+  tickMistHold();
+}
+
+async function releaseMistHold(): Promise<void> {
+  if (!mistHolding) return;
+  const elapsed = mistHoldStart ? performance.now() - mistHoldStart : 0;
+  const ready = isMistReady(elapsed);
+  stopMistHold(!ready);
+  if (!ready || isTransitioning) {
+    if (isTransitioning) setMistProgress(0);
+    return;
+  }
+  setMistProgress(1);
+  await advanceStage();
+  setMistProgress(0);
+}
+
+async function advanceStage(): Promise<void> {
+  if (isTransitioning) return;
+  if (currentIdx < SIP_COUNT) await gotoStage(currentIdx + 1);
+  else await enterEpilogue();
 }
 
 // ---------- 启动 ----------
@@ -590,6 +711,7 @@ function init() {
     langToggle.addEventListener('click', () => {
       toggleLang();
       onboarding.refreshLanguage();
+      refreshStageButtonAccessibility();
       if (currentIdx >= 1 && currentIdx <= SIP_COUNT && !isTransitioning) {
         applyStage(currentIdx);
       }

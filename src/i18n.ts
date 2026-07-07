@@ -43,6 +43,12 @@ export interface Strings {
   langAria: string;
   themeAria: string;
   themeNames: { stardust: string; mist: string; aurora: string };
+  modeHints: {
+    mistIdle: string;
+    mistHolding: string;
+    mistReady: string;
+    aurora: string;
+  };
   memoriesTitle: string;
   memoriesSub: string;
   musicPlayer: string;
@@ -86,6 +92,12 @@ const STRINGS: Record<Lang, Strings> = {
     langAria: 'Switch language',
     themeAria: 'Switch ambient theme',
     themeNames: { stardust: 'Stardust', mist: 'Mist', aurora: 'Aurora' },
+    modeHints: {
+      mistIdle: 'Hold to clear the fog',
+      mistHolding: 'Keep holding',
+      mistReady: 'Release to take the next sip',
+      aurora: 'Move to bend the light',
+    },
     memoriesTitle: 'Sealed Memories',
     memoriesSub: 'What you let go remains here, as light.',
     musicPlayer: 'Memory score player',
@@ -149,6 +161,12 @@ const STRINGS: Record<Lang, Strings> = {
     langAria: '切换语言',
     themeAria: '切换氛围主题',
     themeNames: { stardust: '星河', mist: '雾海', aurora: '极光' },
+    modeHints: {
+      mistIdle: '按住，让雾散开',
+      mistHolding: '继续按住',
+      mistReady: '松开，饮下下一口',
+      aurora: '移动，牵引光带',
+    },
     memoriesTitle: '已封缄的记忆',
     memoriesSub: '你放下的,在此化作光。',
     musicPlayer: '记忆配乐播放器',

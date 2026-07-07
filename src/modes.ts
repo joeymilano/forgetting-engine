@@ -56,6 +56,10 @@ export function isMistReady(elapsedMs: number): boolean {
   return elapsedMs >= MIST_HOLD_THRESHOLD_MS;
 }
 
+export function mistHoldProgress(elapsedMs: number): number {
+  return Math.max(0, Math.min(1, elapsedMs / MIST_HOLD_THRESHOLD_MS));
+}
+
 export function directionFromDelta(dx: number, dy: number): AuroraDirection {
   if (Math.hypot(dx, dy) < AURORA_DIRECTION_DEADZONE_PX) return 'none';
   if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';

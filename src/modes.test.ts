@@ -5,6 +5,7 @@ import {
   directionFromDelta,
   getModeBehavior,
   isMistReady,
+  mistHoldProgress,
   nextAmbientMode,
   normalizeAmbientMode,
 } from './modes';
@@ -55,6 +56,13 @@ describe('ambient mode behavior model', () => {
     expect(isMistReady(1099)).toBe(false);
     expect(isMistReady(1100)).toBe(true);
     expect(isMistReady(1400)).toBe(true);
+  });
+
+  it('clamps Mist hold progress between zero and one', () => {
+    expect(mistHoldProgress(-50)).toBe(0);
+    expect(mistHoldProgress(550)).toBe(0.5);
+    expect(mistHoldProgress(1100)).toBe(1);
+    expect(mistHoldProgress(1600)).toBe(1);
   });
 
   it('normalizes Aurora pointer movement into four readable directions', () => {

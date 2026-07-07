@@ -1326,6 +1326,46 @@ html[lang='zh'] .reset-link {
   opacity: 0.3;
 }
 
+body[data-mode='mist'] {
+  --mist-progress: 0;
+}
+
+body[data-mode='mist'] .stage-text {
+  filter: blur(calc((1 - var(--mist-progress)) * 1.2px));
+  opacity: calc(0.58 + var(--mist-progress) * 0.42);
+  transition: filter 0.22s ease, opacity 0.22s ease;
+}
+
+body[data-mode='mist'] .progress {
+  gap: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(168, 204, 228, 0.18);
+  overflow: hidden;
+}
+
+body[data-mode='mist'] .progress .dot {
+  flex: 1;
+  height: 2px;
+  border-radius: 0;
+  transform: none;
+}
+
+body[data-mode='mist'] .stage-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: calc(var(--mist-progress) * 100%);
+  border-radius: inherit;
+  padding: 0;
+  background: rgba(168, 204, 228, 0.14);
+  -webkit-mask: none;
+  mask: none;
+  opacity: 1;
+  animation: none;
+  pointer-events: none;
+}
+
 /* =====================================================================
    底部铭文
    ===================================================================== */
