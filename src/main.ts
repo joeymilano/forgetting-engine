@@ -343,7 +343,7 @@ async function enterSealing() {
   applyRawText(memory);
   const fullText = stageText.textContent || '';
   stageText.textContent = '';
-  stageText.style.visibility = 'visible';
+  stageText.style.opacity = '';
 
   // 加载文案轮播(底部小字,每 2.5s)
   loadingLine.hidden = false;
@@ -386,10 +386,13 @@ async function gotoStage(nextIdx: number) {
 
   // 旧 spec(当前 stageText)
   const fromSpec = specFromEl();
-  stageText.style.visibility = 'hidden';
 
-  // 新内容(禁 transition,读准确 rect)
+  // 隐藏正文(粒子接管)。必须用 opacity 而非 visibility:
+  // stage-text 带 filter: blur() + will-change,visibility 切换会销毁/重建
+  // 它的合成层,Chrome 重建带滤镜的层时会闪黑色矩形(黑块闪烁根因之一)。
+  // opacity 只走合成器,层常驻,不触发重栅格化。
   stageText.style.transition = 'none';
+  stageText.style.opacity = '0';
   applyStage(nextIdx);
   void stageText.offsetWidth; // 强制 reflow
   const toSpec = specFromEl();
@@ -397,9 +400,11 @@ async function gotoStage(nextIdx: number) {
   // 粒子转场
   await weathering.transition(fromSpec, toSpec);
 
-  // 恢复显示
+  // 恢复显示:仍在 transition:none 下瞬时恢复,再解除禁用,
+  // 避免触发 1.2s 的 opacity 过渡(与粒子聚合的节奏冲突)。
+  stageText.style.opacity = '';
+  void stageText.offsetWidth;
   stageText.style.transition = '';
-  stageText.style.visibility = 'visible';
   currentIdx = nextIdx;
   updateStageChrome(nextIdx);
   isTransitioning = false;
@@ -422,7 +427,9 @@ async function enterEpilogue() {
   weathering.stopAsh();
 
   const fromSpec = specFromEl();
-  stageText.style.visibility = 'hidden';
+  // 同 gotoStage:opacity 隐藏,保持合成层常驻,避免闪黑
+  stageText.style.transition = 'none';
+  stageText.style.opacity = '0';
   stageBtn.hidden = true;
 
   // 第 7 层文字完全粒子化飘散,不再浮现新文字
@@ -473,7 +480,7 @@ async function reset() {
   resetLink.hidden = true;
   epilogueView.hidden = true;
   stageText.textContent = '';
-  stageText.style.visibility = 'visible';
+  stageText.style.opacity = '';
   stageText.style.transition = '';
   stageBtn.hidden = true;
   loadingLine.hidden = true;
