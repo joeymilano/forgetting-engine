@@ -12,6 +12,8 @@ import { Weathering, type LayerSpec } from './weathering';
 import { initAmbient, setAmbientField, setAmbientTheme } from './ambient';
 import {
   type AmbientMode,
+  type AuroraDirection,
+  directionFromDelta,
   getModeBehavior,
   isMistReady,
   mistHoldProgress,
@@ -61,6 +63,8 @@ let isTransitioning = false;
 let mistHoldStart = 0;
 let mistHoldFrame = 0;
 let mistHolding = false;
+let auroraPointerStart: { x: number; y: number } | null = null;
+let auroraDirection: AuroraDirection = 'none';
 let sealingTimers: ReturnType<typeof setTimeout>[] = [];
 let epilogueTimers: ReturnType<typeof setTimeout>[] = [];
 
@@ -408,8 +412,13 @@ async function gotoStage(nextIdx: number) {
   void stageText.offsetWidth; // 强制 reflow
   const toSpec = specFromEl();
 
-  // 粒子转场
-  await weathering.transition(fromSpec, toSpec);
+  // 粒子转场:按当前氛围模式选择风化方式(ash / fog / ribbon)。
+  const behavior = getModeBehavior(activeMode());
+  const direction = activeMode() === 'aurora' ? auroraDirection : 'none';
+  await weathering.transition(fromSpec, toSpec, {
+    kind: behavior.transitionKind,
+    direction,
+  });
 
   // 恢复显示:仍在 transition:none 下瞬时恢复,再解除禁用,
   // 避免触发 1.2s 的 opacity 过渡(与粒子聚合的节奏冲突)。
@@ -418,6 +427,7 @@ async function gotoStage(nextIdx: number) {
   stageText.style.transition = '';
   currentIdx = nextIdx;
   updateStageChrome(nextIdx);
+  if (behavior.transitionKind === 'ribbon') resetAuroraDirection();
   isTransitioning = false;
 }
 
@@ -500,6 +510,7 @@ async function reset() {
   loadingLine.hidden = true;
 
   stopMistHold(true);
+  resetAuroraDirection();
   enterIdle();
   app.classList.remove('is-hidden');
 }
@@ -521,7 +532,8 @@ submitBtn.addEventListener('click', () => {
   if (!submitBtn.disabled && !isTransitioning) enterSealing();
 });
 stageBtn.addEventListener('click', async () => {
-  if (activeMode() !== 'stardust') return;
+  // Mist 走 hold/release,不在 click 推进;其余模式(stardust / aurora)点击即推进。
+  if (activeMode() === 'mist') return;
   await advanceStage();
 });
 stageBtn.addEventListener('pointerdown', (e) => {
@@ -560,6 +572,45 @@ stageBtn.addEventListener('keyup', async (e) => {
   e.preventDefault();
   await releaseMistHold();
 });
+
+// Aurora:指针在舞台上移动 → 牵引光带方向;方向键改向,Enter/Space 推进。
+stageView.addEventListener('pointerdown', (e) => {
+  if (activeMode() !== 'aurora') return;
+  auroraPointerStart = { x: e.clientX, y: e.clientY };
+});
+stageView.addEventListener('pointermove', (e) => {
+  if (activeMode() !== 'aurora') return;
+  if (auroraPointerStart) {
+    setAuroraDirection(
+      directionFromDelta(e.clientX - auroraPointerStart.x, e.clientY - auroraPointerStart.y),
+    );
+    return;
+  }
+  const rect = stageView.getBoundingClientRect();
+  setAuroraDirection(
+    directionFromDelta(
+      e.clientX - rect.left - rect.width / 2,
+      e.clientY - rect.top - rect.height / 2,
+    ),
+  );
+});
+stageView.addEventListener('pointerup', () => {
+  if (activeMode() !== 'aurora') return;
+  auroraPointerStart = null;
+});
+stageView.addEventListener('pointercancel', () => {
+  auroraPointerStart = null;
+});
+stageBtn.addEventListener('keydown', async (e) => {
+  if (activeMode() !== 'aurora') return;
+  if (e.key === 'ArrowLeft') setAuroraDirection('left');
+  else if (e.key === 'ArrowRight') setAuroraDirection('right');
+  else if (e.key === 'ArrowUp') setAuroraDirection('up');
+  else if (e.key === 'ArrowDown') setAuroraDirection('down');
+  else if (e.key === 'Enter' || e.key === ' ') await advanceStage();
+  else return;
+  e.preventDefault();
+});
 resetLink.addEventListener('click', (e) => {
   e.preventDefault();
   reset();
@@ -578,6 +629,7 @@ function detectTheme(): AmbientMode {
 
 function applyTheme(theme: AmbientMode): void {
   stopMistHold(true);
+  resetAuroraDirection();
   const behavior = getModeBehavior(theme);
   document.body.dataset.theme = theme;
   document.body.dataset.mode = theme;
@@ -603,6 +655,22 @@ function cycleTheme(): void {
 
 function activeMode(): AmbientMode {
   return normalizeAmbientMode(document.body.dataset.theme);
+}
+
+function setAuroraDirection(direction: AuroraDirection): void {
+  auroraDirection = direction;
+  document.body.dataset.auroraDirection = direction;
+  stageBtn.dataset.auroraDirection = direction;
+  if (activeMode() === 'aurora') {
+    const label = t().modeHints.aurora;
+    stageBtn.setAttribute('aria-label', label);
+    stageBtn.setAttribute('title', label);
+  }
+}
+
+function resetAuroraDirection(): void {
+  auroraPointerStart = null;
+  setAuroraDirection('none');
 }
 
 function currentStageButtonLabel(): string {

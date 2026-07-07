@@ -857,6 +857,19 @@ body.revealed .writing-view > .submit-btn {
   body:not(.revealed) .writing-view > .memory-input,
   body:not(.revealed) .writing-view > .meta-row,
   body:not(.revealed) .writing-view > .submit-btn { opacity: 1; }
+
+  /* 模式交互的视觉反馈退化为瞬时,避免眩晕 */
+  body[data-mode='mist'] .stage-text,
+  body[data-mode='aurora'] .stage-text {
+    transition-duration: 0.01ms;
+    transform: none;
+  }
+  body[data-mode='mist'] .stage-btn::before {
+    transition: none;
+  }
+  body[data-mode='aurora'] .progress .dot {
+    transition: none;
+  }
 }
 
 .app {
@@ -1378,6 +1391,43 @@ body[data-mode='mist'] .stage-btn::before {
 }
 
 /* =====================================================================
+   极光模式(aurora):方向牵引 —— 光带随指针/方向键偏摆,进度条为竖向光柱
+   ===================================================================== */
+body[data-mode='aurora'] .bg-aurora {
+  opacity: 0.78;
+}
+
+body[data-mode='aurora'] .stage-text {
+  transition: transform 0.28s ease, text-shadow 0.28s ease;
+  text-shadow: 0 0 18px rgba(118, 232, 182, 0.18);
+}
+
+body[data-mode='aurora'][data-aurora-direction='left'] .stage-text {
+  transform: skewY(-1.5deg) translateX(-8px);
+}
+body[data-mode='aurora'][data-aurora-direction='right'] .stage-text {
+  transform: skewY(1.5deg) translateX(8px);
+}
+body[data-mode='aurora'][data-aurora-direction='up'] .stage-text {
+  transform: translateY(-8px);
+}
+body[data-mode='aurora'][data-aurora-direction='down'] .stage-text {
+  transform: translateY(8px);
+}
+
+body[data-mode='aurora'] .progress .dot {
+  width: 4px;
+  height: 18px;
+  border-radius: 999px;
+  transform-origin: bottom;
+  transition: height 0.3s ease, box-shadow 0.3s ease;
+}
+body[data-mode='aurora'] .progress .dot.current {
+  height: 30px;
+  box-shadow: 0 0 16px rgba(118, 232, 182, 0.5);
+}
+
+/* =====================================================================
    底部铭文
    ===================================================================== */
 .foot-mark {
@@ -1433,6 +1483,13 @@ html[lang='zh'] .foot-mark {
   .progress::before,
   .progress::after {
     height: 16px;
+  }
+  body[data-mode='aurora'] .progress {
+    gap: 6px;
+  }
+  body[data-mode='aurora'] .progress .dot {
+    width: 4px;
+    max-height: 24px;
   }
   .round-btn {
     font-size: 13px;

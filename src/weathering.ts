@@ -9,6 +9,8 @@
    空闲时 rAF 必须停止(呼吸效果交给 CSS)。
    ===================================================================== */
 
+import type { AuroraDirection, TransitionKind } from './modes';
+
 /** 一层的几何与排版描述(由 main.ts 计算后传入,weathering 不读 DOM 实时状态) */
 export interface LayerSpec {
   text: string; // 已分行的文本(含 \n)
@@ -21,6 +23,15 @@ export interface LayerSpec {
   width: number; // 文字区域宽
   left: number; // 区域在视口的 left
   top: number; // 区域在视口的 top
+}
+
+/** 转场行为(由 main.ts 依据当前氛围模式传入):
+ *  ash    星河 —— 行尾先剥落,向上向右斜升(默认,保持原风化观感)
+ *  fog    雾海 —— 横向弥散,聚合更缓慢柔和
+ *  ribbon 极光 —— 沿指定方向被牵引成带状飘走/汇聚 */
+export interface TransitionOptions {
+  kind?: TransitionKind;
+  direction?: AuroraDirection;
 }
 
 interface Particle {
@@ -245,9 +256,18 @@ export class Weathering {
   }
 
   /** 主转场:fromSpec 飘散 → toSpec 聚合 */
-  transition(fromSpec: LayerSpec, toSpec: LayerSpec): Promise<void> {
+  transition(
+    fromSpec: LayerSpec,
+    toSpec: LayerSpec,
+    options: TransitionOptions = {},
+  ): Promise<void> {
     this.stopLoop();
     this.recycleAll();
+
+    const kind = options.kind ?? 'ash';
+    const direction = options.direction ?? 'none';
+    const dirX = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+    const dirY = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
 
     const fromP = this.sample(fromSpec);
     const toP = this.sample(toSpec);
@@ -262,18 +282,31 @@ export class Weathering {
     const xRange = Math.max(1, xMax - xMin);
     for (const p of fromP) {
       const nx = (p.ox - xMin) / xRange; // 0=行首 1=行尾
-      p.delay = (1 - nx) * 1.0; // 行尾 delay≈0, 行首 delay≈1.0
       p.dur = DISP_DUR;
       p.mode = 0;
       p.alpha = 1;
       p.size = p.bsize;
       p.x = p.ox;
       p.y = p.oy;
-      p.vx = 0.3 + Math.abs(Math.sin(p.phase * 7.1)) * 1.1; // 0.3~1.4 向右
-      p.vy = -0.2 - Math.abs(Math.cos(p.phase * 5.3)) * 0.7; // -0.2~-0.9 向上
+      if (kind === 'fog') {
+        // 雾海:自中线向两侧横向弥散,几乎不升,时序由中间向外
+        p.delay = Math.abs(0.5 - nx) * 0.7;
+        p.vx = (nx - 0.5) * 0.8;
+        p.vy = Math.sin(p.phase * 3.7) * 0.22;
+      } else if (kind === 'ribbon') {
+        // 极光:沿方向被牵引成带,叠加轻微正弦扰动
+        p.delay = nx * 0.35;
+        p.vx = dirX * (0.8 + Math.abs(Math.sin(p.phase)) * 1.1) + 0.2;
+        p.vy = dirY * (0.55 + Math.abs(Math.cos(p.phase)) * 0.8) - 0.08;
+      } else {
+        // 星河(默认):行尾→行首依次剥落,向右向上斜升
+        p.delay = (1 - nx) * 1.0; // 行尾 delay≈0, 行首 delay≈1.0
+        p.vx = 0.3 + Math.abs(Math.sin(p.phase * 7.1)) * 1.1; // 0.3~1.4 向右
+        p.vy = -0.2 - Math.abs(Math.cos(p.phase * 5.3)) * 0.7; // -0.2~-0.9 向上
+      }
     }
 
-    // 聚合粒子:从目标位正下方 30px 出发
+    // 聚合粒子:从目标位附近出发
     let axMin = Infinity;
     let axMax = -Infinity;
     for (const p of toP) {
@@ -284,12 +317,24 @@ export class Weathering {
     for (const p of toP) {
       const nx = (p.ox - axMin) / axRange;
       p.delay = nx * 0.6; // 行首先聚合
-      p.dur = ASM_DUR;
       p.mode = 1;
       p.alpha = 0;
       p.size = p.bsize * 0.7;
-      p.sx = p.ox;
-      p.sy = p.oy + 30; // 下方 30px
+      if (kind === 'fog') {
+        // 雾海:自侧向横向汇拢,聚合更慢更柔
+        p.sx = p.ox + (nx - 0.5) * 80;
+        p.sy = p.oy + Math.sin(p.phase) * 10;
+        p.dur = ASM_DUR * 1.25;
+      } else if (kind === 'ribbon') {
+        // 极光:自方向反侧汇入
+        p.sx = p.ox - dirX * 70 + Math.sin(p.phase) * 18;
+        p.sy = p.oy - dirY * 50 + Math.cos(p.phase) * 14;
+        p.dur = ASM_DUR * 0.9;
+      } else {
+        p.sx = p.ox;
+        p.sy = p.oy + 30; // 下方 30px
+        p.dur = ASM_DUR;
+      }
       p.x = p.sx;
       p.y = p.sy;
     }
