@@ -527,13 +527,19 @@ stageBtn.addEventListener('click', async () => {
 stageBtn.addEventListener('pointerdown', (e) => {
   if (activeMode() !== 'mist') return;
   e.preventDefault();
-  stageBtn.setPointerCapture(e.pointerId);
+  if (typeof stageBtn.setPointerCapture === 'function') {
+    stageBtn.setPointerCapture(e.pointerId);
+  }
   startMistHold();
 });
 stageBtn.addEventListener('pointerup', async (e) => {
   if (activeMode() !== 'mist') return;
   e.preventDefault();
-  if (stageBtn.hasPointerCapture(e.pointerId)) {
+  if (
+    typeof stageBtn.hasPointerCapture === 'function' &&
+    typeof stageBtn.releasePointerCapture === 'function' &&
+    stageBtn.hasPointerCapture(e.pointerId)
+  ) {
     stageBtn.releasePointerCapture(e.pointerId);
   }
   await releaseMistHold();
@@ -619,10 +625,19 @@ function refreshStageButtonAccessibility(): void {
   setStageButtonActionLabel(currentStageButtonLabel());
 }
 
-function setMistProgress(value: number): void {
+function setMistVisualProgress(value: number): number {
   const progress = Math.max(0, Math.min(1, value));
   document.body.style.setProperty('--mist-progress', progress.toFixed(3));
   stageBtn.dataset.mistReady = progress >= 1 ? 'true' : 'false';
+  return progress;
+}
+
+function setMistProgress(value: number): void {
+  const progress = setMistVisualProgress(value);
+  if (activeMode() !== 'mist') {
+    refreshStageButtonAccessibility();
+    return;
+  }
   const hints = t().modeHints;
   const label =
     progress >= 1 ? hints.mistReady : progress > 0 ? hints.mistHolding : hints.mistIdle;
@@ -637,7 +652,10 @@ function stopMistHold(resetProgress: boolean): number {
   stageBtn.dataset.mistHolding = 'false';
   const elapsed = mistHoldStart ? performance.now() - mistHoldStart : 0;
   mistHoldStart = 0;
-  if (resetProgress) setMistProgress(0);
+  if (resetProgress) {
+    setMistVisualProgress(0);
+    refreshStageButtonAccessibility();
+  }
   return elapsed;
 }
 
