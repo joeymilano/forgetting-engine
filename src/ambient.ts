@@ -7,6 +7,8 @@
    - 标签页隐藏时停 rAF,可见时恢复
    ===================================================================== */
 
+import type { ParticleField } from './modes';
+
 export type AmbientTheme = 'stardust' | 'mist' | 'aurora';
 
 /** 三主题粒子色调(径向渐变三段) */
@@ -36,6 +38,7 @@ let tmy = 0;
 let running = false;
 let lastT = 0;
 let currentTheme: AmbientTheme = 'stardust';
+let currentField: ParticleField = 'embers';
 let lastPx = '';
 let lastPy = '';
 
@@ -48,6 +51,22 @@ interface Particle {
   phase: number;
   alpha: number;
   depth: number; // 0 近 ~ 1 远
+}
+
+function velocityForField(field: ParticleField, depth: number): Pick<Particle, 'vx' | 'vy'> {
+  const vx =
+    field === 'fog'
+      ? (Math.random() - 0.5) * 0.18
+      : field === 'streams'
+        ? 0.16 + Math.random() * 0.2
+        : (Math.random() - 0.5) * 0.1 * (0.5 + depth);
+  const vy =
+    field === 'fog'
+      ? (Math.random() - 0.5) * 0.035
+      : field === 'streams'
+        ? -0.02 - Math.random() * 0.08
+        : -0.03 - Math.random() * 0.16 * (0.6 + depth);
+  return { vx, vy };
 }
 
 // 软圆点精灵(预生成径向渐变),按主题切换色调
@@ -71,6 +90,16 @@ export function setAmbientTheme(theme: AmbientTheme): void {
   sprite = makeSprite(THEME_TINTS[theme]);
 }
 
+export function setAmbientField(field: ParticleField): void {
+  if (currentField === field) return;
+  currentField = field;
+  for (const particle of particles) {
+    const { vx, vy } = velocityForField(field, particle.depth);
+    particle.vx = vx;
+    particle.vy = vy;
+  }
+}
+
 function resize() {
   W = window.innerWidth;
   H = window.innerHeight;
@@ -87,11 +116,12 @@ function seed() {
   particles = [];
   for (let i = 0; i < count; i++) {
     const depth = Math.random();
+    const { vx, vy } = velocityForField(currentField, depth);
     particles.push({
       x: Math.random() * W,
       y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.1 * (0.5 + depth),
-      vy: -0.03 - Math.random() * 0.16 * (0.6 + depth), // 缓慢上升,像灰烬
+      vx,
+      vy,
       size: 0.5 + depth * 2.6,
       phase: Math.random() * Math.PI * 2,
       alpha: 0.06 + depth * 0.4,
