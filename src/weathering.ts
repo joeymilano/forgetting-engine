@@ -85,6 +85,8 @@ export class Weathering {
   private ashParticles: Ash[] = [];
   private pool: Particle[] = [];
 
+  private transKind: TransitionKind = 'ash';
+
   private rafId = 0;
   private running = false;
   private startT = 0;
@@ -265,6 +267,7 @@ export class Weathering {
     this.recycleAll();
 
     const kind = options.kind ?? 'ash';
+    this.transKind = kind;
     const direction = options.direction ?? 'none';
     const dirX = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
     const dirY = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
@@ -289,20 +292,20 @@ export class Weathering {
       p.x = p.ox;
       p.y = p.oy;
       if (kind === 'fog') {
-        // 雾海:自中线向两侧横向弥散,几乎不升,时序由中间向外
+        // 雾海:自中线向两侧大幅横向弥散,几乎不升,时序由中间向外
         p.delay = Math.abs(0.5 - nx) * 0.7;
-        p.vx = (nx - 0.5) * 0.8;
-        p.vy = Math.sin(p.phase * 3.7) * 0.22;
+        p.vx = (nx - 0.5) * 2.2 + (nx < 0.5 ? -0.35 : 0.35);
+        p.vy = Math.sin(p.phase * 3.7) * 0.4;
       } else if (kind === 'ribbon') {
-        // 极光:沿方向被牵引成带,叠加轻微正弦扰动
+        // 极光:沿方向被强力牵引成带,叠加正弦扰动
         p.delay = nx * 0.35;
-        p.vx = dirX * (0.8 + Math.abs(Math.sin(p.phase)) * 1.1) + 0.2;
-        p.vy = dirY * (0.55 + Math.abs(Math.cos(p.phase)) * 0.8) - 0.08;
+        p.vx = dirX * (1.6 + Math.abs(Math.sin(p.phase)) * 1.6) + 0.4;
+        p.vy = dirY * (1.2 + Math.abs(Math.cos(p.phase)) * 1.1) - 0.15;
       } else {
-        // 星河(默认):行尾→行首依次剥落,向右向上斜升
+        // 星河(默认):行尾→行首依次剥落,如灰烬般向右上腾起
         p.delay = (1 - nx) * 1.0; // 行尾 delay≈0, 行首 delay≈1.0
-        p.vx = 0.3 + Math.abs(Math.sin(p.phase * 7.1)) * 1.1; // 0.3~1.4 向右
-        p.vy = -0.2 - Math.abs(Math.cos(p.phase * 5.3)) * 0.7; // -0.2~-0.9 向上
+        p.vx = 0.6 + Math.abs(Math.sin(p.phase * 7.1)) * 1.5; // 0.6~2.1 向右
+        p.vy = -0.9 - Math.abs(Math.cos(p.phase * 5.3)) * 1.2; // -0.9~-2.1 向上
       }
     }
 
@@ -353,6 +356,7 @@ export class Weathering {
   disperseOnly(fromSpec: LayerSpec): Promise<void> {
     this.stopLoop();
     this.recycleAll();
+    this.transKind = 'ash';
     const fromP = this.sample(fromSpec);
     let xMin = Infinity;
     let xMax = -Infinity;
@@ -370,8 +374,8 @@ export class Weathering {
       p.size = p.bsize;
       p.x = p.ox;
       p.y = p.oy;
-      p.vx = 0.3 + Math.abs(Math.sin(p.phase * 7.1)) * 1.3;
-      p.vy = -0.3 - Math.abs(Math.cos(p.phase * 5.3)) * 0.8;
+      p.vx = 0.6 + Math.abs(Math.sin(p.phase * 7.1)) * 1.6;
+      p.vy = -0.9 - Math.abs(Math.cos(p.phase * 5.3)) * 1.3;
     }
     this.tParticles = fromP;
     this.startT = performance.now();
@@ -490,18 +494,39 @@ export class Weathering {
       p.alpha = 0.85;
       return;
     }
-    // 飘散:life 线性衰减
+    // 飘散:life 线性衰减,按当前模式给出截然不同的运动签名
     const life = Math.max(0, 1 - localT / p.dur);
     if (life <= 0) {
       p.alpha = 0;
       return;
     }
-    const wind = Math.sin(elapsed * 2.0 + p.y * 0.01) * 0.35; // 风场扰动(关键细节)
-    p.x += p.vx * 0.4 + wind * 0.3;
-    p.y += p.vy * 0.4;
-    p.vx *= 0.992;
-    p.alpha = 0.85 * life;
-    p.size = p.bsize * (0.3 + 0.7 * life);
+    if (this.transKind === 'fog') {
+      // 雾海:大幅横向铺开、几乎不升,柔和地稀释消散(alpha 平方衰减更绵长)
+      const drift = Math.sin(elapsed * 1.3 + p.oy * 0.02) * 0.7;
+      p.x += p.vx * 2.2 + drift;
+      p.y += p.vy * 1.0 + Math.sin(elapsed * 1.1 + p.phase * 6) * 0.25;
+      p.vx *= 0.996;
+      p.alpha = 0.8 * life * life;
+      p.size = p.bsize * (0.5 + 1.0 * life); // 先微膨胀再稀释
+    } else if (this.transKind === 'ribbon') {
+      // 极光:沿方向被强力拉成流光带,尾部微微加速
+      const shimmer = Math.sin(elapsed * 3.2 + p.phase * 4) * 0.45;
+      p.x += p.vx * 2.4 + shimmer * 0.6;
+      p.y += p.vy * 2.4;
+      p.vx *= 0.994;
+      p.vy *= 0.994;
+      p.alpha = 0.9 * life;
+      p.size = p.bsize * (0.35 + 0.65 * life);
+    } else {
+      // 星河:如灰烬腾起 —— 持续上扬加速 + 右飘 + 湍流
+      const wind = Math.sin(elapsed * 2.2 + p.y * 0.012) * 0.75;
+      p.vy -= 0.022; // 越飘越快地上扬
+      p.x += p.vx * 1.5 + wind;
+      p.y += p.vy * 1.5;
+      p.vx *= 0.994;
+      p.alpha = 0.85 * life;
+      p.size = p.bsize * (0.3 + 0.7 * life);
+    }
   }
 
   private updateAssemble(p: Particle, elapsed: number) {
