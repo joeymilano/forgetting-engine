@@ -36,6 +36,8 @@ let tmy = 0;
 let running = false;
 let lastT = 0;
 let currentTheme: AmbientTheme = 'stardust';
+let lastPx = '';
+let lastPy = '';
 
 interface Particle {
   x: number;
@@ -108,9 +110,18 @@ function tick(t: number) {
   my += (tmy - my) * 0.05;
   const px = (mx / W - 0.5) * 2; // -1..1
   const py = (my / H - 0.5) * 2;
-  // 视差量写入 CSS 变量,供背景图层位移使用
-  document.documentElement.style.setProperty('--px', px.toFixed(3));
-  document.documentElement.style.setProperty('--py', py.toFixed(3));
+  // 视差量写入 CSS 变量,供背景图层位移使用。
+  // 仅在值真正变化时写入::root 自定义属性每帧重写会让全文档样式
+  // 失效重算,并每帧重启所有模糊背景层的 transform 过渡 —— 转场期间
+  // 与粒子 canvas 叠加,是黑块闪烁的诱因之一。
+  const pxs = px.toFixed(3);
+  const pys = py.toFixed(3);
+  if (pxs !== lastPx || pys !== lastPy) {
+    document.documentElement.style.setProperty('--px', pxs);
+    document.documentElement.style.setProperty('--py', pys);
+    lastPx = pxs;
+    lastPy = pys;
+  }
 
   ctx.clearRect(0, 0, W, H);
   const time = t * 0.0005;
