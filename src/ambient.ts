@@ -7,6 +7,8 @@
    - 标签页隐藏时停 rAF,可见时恢复
    ===================================================================== */
 
+import type { ParticleField } from './modes';
+
 export type AmbientTheme = 'stardust' | 'mist' | 'aurora';
 
 /** 三主题粒子色调(径向渐变三段) */
@@ -36,6 +38,7 @@ let tmy = 0;
 let running = false;
 let lastT = 0;
 let currentTheme: AmbientTheme = 'stardust';
+let currentField: ParticleField = 'embers';
 let lastPx = '';
 let lastPy = '';
 
@@ -71,6 +74,10 @@ export function setAmbientTheme(theme: AmbientTheme): void {
   sprite = makeSprite(THEME_TINTS[theme]);
 }
 
+export function setAmbientField(field: ParticleField): void {
+  currentField = field;
+}
+
 function resize() {
   W = window.innerWidth;
   H = window.innerHeight;
@@ -87,11 +94,24 @@ function seed() {
   particles = [];
   for (let i = 0; i < count; i++) {
     const depth = Math.random();
+    const field = currentField;
+    const vxBase =
+      field === 'fog'
+        ? (Math.random() - 0.5) * 0.18
+        : field === 'streams'
+          ? 0.16 + Math.random() * 0.2
+          : (Math.random() - 0.5) * 0.1 * (0.5 + depth);
+    const vyBase =
+      field === 'fog'
+        ? (Math.random() - 0.5) * 0.035
+        : field === 'streams'
+          ? -0.02 - Math.random() * 0.08
+          : -0.03 - Math.random() * 0.16 * (0.6 + depth);
     particles.push({
       x: Math.random() * W,
       y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.1 * (0.5 + depth),
-      vy: -0.03 - Math.random() * 0.16 * (0.6 + depth), // 缓慢上升,像灰烬
+      vx: vxBase,
+      vy: vyBase,
       size: 0.5 + depth * 2.6,
       phase: Math.random() * Math.PI * 2,
       alpha: 0.06 + depth * 0.4,

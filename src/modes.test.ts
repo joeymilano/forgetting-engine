@@ -17,6 +17,10 @@ describe('ambient mode behavior model', () => {
     expect(nextAmbientMode('aurora')).toBe('stardust');
   });
 
+  it('exposes only the three existing persisted mode names', () => {
+    expect([...AMBIENT_MODES]).toEqual(['stardust', 'mist', 'aurora']);
+  });
+
   it('falls back unknown stored values to stardust', () => {
     expect(normalizeAmbientMode('mist')).toBe('mist');
     expect(normalizeAmbientMode('aurora')).toBe('aurora');

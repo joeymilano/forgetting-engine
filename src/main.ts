@@ -9,7 +9,13 @@ import { SIP_COUNT } from './experience';
 import { typewriter } from './typewriter';
 import { generateStages } from './llm';
 import { Weathering, type LayerSpec } from './weathering';
-import { initAmbient, setAmbientTheme, type AmbientTheme } from './ambient';
+import { initAmbient, setAmbientField, setAmbientTheme } from './ambient';
+import {
+  type AmbientMode,
+  getModeBehavior,
+  nextAmbientMode,
+  normalizeAmbientMode,
+} from './modes';
 import { applyLang, getLang, t, toggleLang, type Lang } from './i18n';
 import { initMusic } from './music';
 import { initMemoryStars, addMemoryStar } from './memory-stars';
@@ -516,36 +522,37 @@ resetLink.addEventListener('click', (e) => {
 });
 
 // ---------- 氛围主题(星河 / 雾海 / 极光)----------
-const THEMES: AmbientTheme[] = ['stardust', 'mist', 'aurora'];
 const THEME_KEY = 'fe-theme';
 
-function detectTheme(): AmbientTheme {
+function detectTheme(): AmbientMode {
   try {
-    const s = localStorage.getItem(THEME_KEY);
-    if (s === 'stardust' || s === 'mist' || s === 'aurora') return s;
+    return normalizeAmbientMode(localStorage.getItem(THEME_KEY));
   } catch {
-    /* 无 localStorage 权限 → 默认星河 */
+    return 'stardust';
   }
-  return 'stardust';
 }
 
-function applyTheme(theme: AmbientTheme): void {
+function applyTheme(theme: AmbientMode): void {
+  const behavior = getModeBehavior(theme);
   document.body.dataset.theme = theme;
+  document.body.dataset.mode = theme;
+  document.body.dataset.advance = behavior.advanceKind;
+  document.body.dataset.progress = behavior.progressKind;
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {
-    /* 静默 */
+    /* no storage permission */
   }
-  setAmbientTheme(theme); // 粒子色调联动
+  setAmbientTheme(theme);
+  setAmbientField(behavior.particleField);
   document.querySelectorAll<HTMLElement>('.theme-dots i').forEach((el) => {
     el.classList.toggle('active', el.dataset.theme === theme);
   });
 }
 
 function cycleTheme(): void {
-  const cur = (document.body.dataset.theme as AmbientTheme) || 'stardust';
-  const idx = THEMES.indexOf(cur);
-  applyTheme(THEMES[(idx + 1) % THEMES.length]);
+  const cur = normalizeAmbientMode(document.body.dataset.theme);
+  applyTheme(nextAmbientMode(cur));
 }
 
 // ---------- 启动 ----------
