@@ -53,6 +53,22 @@ interface Particle {
   depth: number; // 0 近 ~ 1 远
 }
 
+function velocityForField(field: ParticleField, depth: number): Pick<Particle, 'vx' | 'vy'> {
+  const vx =
+    field === 'fog'
+      ? (Math.random() - 0.5) * 0.18
+      : field === 'streams'
+        ? 0.16 + Math.random() * 0.2
+        : (Math.random() - 0.5) * 0.1 * (0.5 + depth);
+  const vy =
+    field === 'fog'
+      ? (Math.random() - 0.5) * 0.035
+      : field === 'streams'
+        ? -0.02 - Math.random() * 0.08
+        : -0.03 - Math.random() * 0.16 * (0.6 + depth);
+  return { vx, vy };
+}
+
 // 软圆点精灵(预生成径向渐变),按主题切换色调
 let sprite: HTMLCanvasElement;
 function makeSprite(tint: [string, string, string] = THEME_TINTS.stardust): HTMLCanvasElement {
@@ -75,7 +91,13 @@ export function setAmbientTheme(theme: AmbientTheme): void {
 }
 
 export function setAmbientField(field: ParticleField): void {
+  if (currentField === field) return;
   currentField = field;
+  for (const particle of particles) {
+    const { vx, vy } = velocityForField(field, particle.depth);
+    particle.vx = vx;
+    particle.vy = vy;
+  }
 }
 
 function resize() {
@@ -94,24 +116,12 @@ function seed() {
   particles = [];
   for (let i = 0; i < count; i++) {
     const depth = Math.random();
-    const field = currentField;
-    const vxBase =
-      field === 'fog'
-        ? (Math.random() - 0.5) * 0.18
-        : field === 'streams'
-          ? 0.16 + Math.random() * 0.2
-          : (Math.random() - 0.5) * 0.1 * (0.5 + depth);
-    const vyBase =
-      field === 'fog'
-        ? (Math.random() - 0.5) * 0.035
-        : field === 'streams'
-          ? -0.02 - Math.random() * 0.08
-          : -0.03 - Math.random() * 0.16 * (0.6 + depth);
+    const { vx, vy } = velocityForField(currentField, depth);
     particles.push({
       x: Math.random() * W,
       y: Math.random() * H,
-      vx: vxBase,
-      vy: vyBase,
+      vx,
+      vy,
       size: 0.5 + depth * 2.6,
       phase: Math.random() * Math.PI * 2,
       alpha: 0.06 + depth * 0.4,

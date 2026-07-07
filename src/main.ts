@@ -564,6 +564,7 @@ function init() {
   applyLang(getLang());
   const onboarding = initOnboarding();
 
+  applyTheme(detectTheme());
   initAmbient();
   // cursor-glow 的 mousemove 已绑定 → 此时隐藏系统光标才安全。
   // 若本模块加载/执行失败,html 上无 js-ready,系统光标仍可见(见 style.css 兜底)。
@@ -582,7 +583,6 @@ function init() {
   // 氛围主题(星河 / 雾海 / 极光):默认星河,localStorage 记忆
   const themeToggle = document.getElementById('theme-toggle');
   themeToggle?.addEventListener('click', cycleTheme);
-  applyTheme(detectTheme());
 
   // 语言切换:切换后若正处于某阶段,按新字体度量重排当前层
   const langToggle = document.getElementById('lang-toggle');
