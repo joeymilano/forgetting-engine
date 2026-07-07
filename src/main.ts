@@ -9,7 +9,7 @@ import { SIP_COUNT } from './experience';
 import { typewriter } from './typewriter';
 import { generateStages } from './llm';
 import { Weathering, type LayerSpec } from './weathering';
-import { initAmbient, setAmbientField, setAmbientTheme } from './ambient';
+import { initAmbient, emitEmberBurst, setAmbientField, setAmbientTheme } from './ambient';
 import {
   type AmbientMode,
   type AuroraDirection,
@@ -531,9 +531,15 @@ memoryInput.addEventListener('input', updateCharCount);
 submitBtn.addEventListener('click', () => {
   if (!submitBtn.disabled && !isTransitioning) enterSealing();
 });
-stageBtn.addEventListener('click', async () => {
+stageBtn.addEventListener('click', async (e) => {
   // Mist 走 hold/release,不在 click 推进;其余模式(stardust / aurora)点击即推进。
   if (activeMode() === 'mist') return;
+  // Stardust 仪式:从点击点迸出一簇上升的余烬。
+  if (activeMode() === 'stardust' && !isTransitioning) {
+    const bx = e.clientX || stageBtn.getBoundingClientRect().left + stageBtn.offsetWidth / 2;
+    const by = e.clientY || stageBtn.getBoundingClientRect().top + stageBtn.offsetHeight / 2;
+    emitEmberBurst(bx, by);
+  }
   await advanceStage();
 });
 stageBtn.addEventListener('pointerdown', (e) => {

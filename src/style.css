@@ -278,6 +278,103 @@ body {
   }
 }
 
+/* =====================================================================
+   模式签名层:每个模式一处 CSS-only 的专属动态,令三个场景各成一个世界
+   (非新增素材,而是叠加各自独有的运动特征 —— 星野闪烁 / 雾团漂移 / 流光帘幕)
+   默认 display:none,仅在对应主题激活,避免无谓的合成开销。
+   ===================================================================== */
+
+/* 星河签名:闪烁星野(细碎星点各自明灭) */
+.bg-stars::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  display: none;
+  background-image:
+    radial-gradient(1.6px 1.6px at 20% 30%, rgba(255, 242, 218, 0.9), transparent),
+    radial-gradient(1.4px 1.4px at 68% 22%, rgba(255, 236, 205, 0.8), transparent),
+    radial-gradient(2px 2px at 45% 62%, rgba(255, 246, 224, 0.9), transparent),
+    radial-gradient(1px 1px at 84% 54%, rgba(255, 240, 214, 0.7), transparent),
+    radial-gradient(1.6px 1.6px at 30% 82%, rgba(255, 236, 205, 0.8), transparent),
+    radial-gradient(1px 1px at 58% 40%, rgba(255, 248, 230, 0.85), transparent),
+    radial-gradient(2px 2px at 14% 56%, rgba(255, 240, 214, 0.75), transparent),
+    radial-gradient(1px 1px at 90% 84%, rgba(255, 236, 205, 0.7), transparent),
+    radial-gradient(1.4px 1.4px at 52% 14%, rgba(255, 244, 222, 0.8), transparent);
+  animation: star-twinkle 5.5s ease-in-out infinite;
+}
+body[data-theme='stardust'] .bg-stars::after {
+  display: block;
+}
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* 雾海签名:低速漂移的雾团(在雾图之上再叠一层横向漂移的柔光,形成层次纵深) */
+.bg-fog::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  display: none;
+  background: radial-gradient(
+    ellipse 68% 46% at 32% 52%,
+    rgba(190, 220, 238, 0.12),
+    rgba(0, 0, 0, 0) 70%
+  );
+  mix-blend-mode: screen;
+  animation: fog-sweep 28s ease-in-out infinite alternate;
+}
+body[data-theme='mist'] .bg-fog::after {
+  display: block;
+}
+@keyframes fog-sweep {
+  0% {
+    transform: translateX(-9%) scale(1.08);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateX(11%) scale(1.24);
+    opacity: 0.9;
+  }
+}
+
+/* 极光签名:竖向流光帘幕(北极光特有的垂帘状光带,横向缓移摆动) */
+.bg-aurora::after {
+  content: '';
+  position: absolute;
+  inset: -12%;
+  display: none;
+  background: repeating-linear-gradient(
+    102deg,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) 58px,
+    rgba(118, 232, 182, 0.07) 92px,
+    rgba(140, 224, 255, 0.11) 128px,
+    rgba(0, 0, 0, 0) 176px
+  );
+  mix-blend-mode: screen;
+  filter: blur(14px);
+  animation: aurora-curtain 15s ease-in-out infinite alternate;
+}
+body[data-theme='aurora'] .bg-aurora::after {
+  display: block;
+}
+@keyframes aurora-curtain {
+  0% {
+    transform: translateX(-6%) skewX(-7deg);
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateX(9%) skewX(7deg);
+    opacity: 1;
+  }
+}
+
 /* 6. 中心暖光晕:烛火径向,呼吸 + 反向视差 */
 .bg-glow {
   z-index: 2;
@@ -870,6 +967,16 @@ body.revealed .writing-view > .submit-btn {
   body[data-mode='aurora'] .progress .dot {
     transition: none;
   }
+  /* 模式签名层与极光牵引:停止持续动画,仅保留静态呈现 */
+  .bg-stars::after,
+  .bg-fog::after,
+  .bg-aurora::after {
+    animation: none;
+  }
+  body[data-mode='aurora'] .bg-aurora::before {
+    transition: none;
+    transform: none !important;
+  }
 }
 
 .app {
@@ -1397,22 +1504,51 @@ body[data-mode='aurora'] .bg-aurora {
   opacity: 0.78;
 }
 
+/* 极光带随牵引方向倾斜/位移 + 增亮,形成"光被牵引"的实感 */
+body[data-mode='aurora'] .bg-aurora::before {
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.5s ease;
+}
+body[data-mode='aurora'][data-aurora-direction='left'] .bg-aurora::before {
+  transform: translate3d(calc(var(--px) * -42px - 40px), calc(var(--py) * -22px), 0)
+    scale(1.28) skewX(-9deg);
+  filter: blur(6px) brightness(0.9) saturate(1.7);
+}
+body[data-mode='aurora'][data-aurora-direction='right'] .bg-aurora::before {
+  transform: translate3d(calc(var(--px) * -42px + 40px), calc(var(--py) * -22px), 0)
+    scale(1.28) skewX(9deg);
+  filter: blur(6px) brightness(0.9) saturate(1.7);
+}
+body[data-mode='aurora'][data-aurora-direction='up'] .bg-aurora::before {
+  transform: translate3d(calc(var(--px) * -42px), calc(var(--py) * -22px - 34px), 0)
+    scale(1.32) skewY(-5deg);
+  filter: blur(6px) brightness(0.92) saturate(1.7);
+}
+body[data-mode='aurora'][data-aurora-direction='down'] .bg-aurora::before {
+  transform: translate3d(calc(var(--px) * -42px), calc(var(--py) * -22px + 34px), 0)
+    scale(1.32) skewY(5deg);
+  filter: blur(6px) brightness(0.92) saturate(1.7);
+}
+
 body[data-mode='aurora'] .stage-text {
-  transition: transform 0.28s ease, text-shadow 0.28s ease;
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), text-shadow 0.32s ease;
   text-shadow: 0 0 18px rgba(118, 232, 182, 0.18);
 }
 
 body[data-mode='aurora'][data-aurora-direction='left'] .stage-text {
-  transform: skewY(-1.5deg) translateX(-8px);
+  transform: skewY(-3deg) translateX(-20px);
+  text-shadow: -18px 0 26px rgba(118, 232, 182, 0.5);
 }
 body[data-mode='aurora'][data-aurora-direction='right'] .stage-text {
-  transform: skewY(1.5deg) translateX(8px);
+  transform: skewY(3deg) translateX(20px);
+  text-shadow: 18px 0 26px rgba(118, 232, 182, 0.5);
 }
 body[data-mode='aurora'][data-aurora-direction='up'] .stage-text {
-  transform: translateY(-8px);
+  transform: translateY(-18px) scaleY(1.04);
+  text-shadow: 0 -18px 26px rgba(118, 232, 182, 0.5);
 }
 body[data-mode='aurora'][data-aurora-direction='down'] .stage-text {
-  transform: translateY(8px);
+  transform: translateY(18px) scaleY(0.97);
+  text-shadow: 0 18px 26px rgba(118, 232, 182, 0.5);
 }
 
 body[data-mode='aurora'] .progress .dot {

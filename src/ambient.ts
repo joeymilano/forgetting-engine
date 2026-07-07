@@ -53,6 +53,34 @@ interface Particle {
   depth: number; // 0 近 ~ 1 远
 }
 
+// 火花迸发:Stardust 每口的仪式反馈 —— 从点击点迸出、上升、渐隐的短命余烬
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  life: number; // 1 → 0
+}
+let sparks: Spark[] = [];
+
+/** 在 (x,y) 迸发一簇上升的余烬火花(Stardust 推进仪式) */
+export function emitEmberBurst(x: number, y: number): void {
+  const n = 22;
+  for (let i = 0; i < n; i++) {
+    const a = (Math.PI * 2 * i) / n + Math.random() * 0.6;
+    const sp = 0.7 + Math.random() * 2.4;
+    sparks.push({
+      x,
+      y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 0.9, // 整体偏上升
+      size: 1.1 + Math.random() * 2.4,
+      life: 1,
+    });
+  }
+}
+
 function velocityForField(field: ParticleField, depth: number): Pick<Particle, 'vx' | 'vy'> {
   const vx =
     field === 'fog'
@@ -188,6 +216,23 @@ function tick(t: number) {
     ctx.drawImage(sprite, p.x + ox - p.size, p.y + oy - p.size, s, s);
   }
   ctx.globalAlpha = 1;
+
+  // 火花迸发(Stardust 仪式):上升 + 重力回落 + 渐隐
+  if (sparks.length) {
+    for (const sp of sparks) {
+      sp.x += sp.vx * dt;
+      sp.y += sp.vy * dt;
+      sp.vy += 0.05 * dt; // 轻微重力,先升后落
+      sp.vx *= 0.97;
+      sp.life -= 0.02 * dt;
+      if (sp.life <= 0) continue;
+      ctx.globalAlpha = Math.max(0, sp.life) * 0.92;
+      const ss = sp.size * 2 * (0.5 + sp.life * 0.7);
+      ctx.drawImage(sprite, sp.x - ss / 2, sp.y - ss / 2, ss, ss);
+    }
+    sparks = sparks.filter((s) => s.life > 0);
+    ctx.globalAlpha = 1;
+  }
 
   requestAnimationFrame(tick);
 }
