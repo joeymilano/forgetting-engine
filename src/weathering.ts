@@ -10,6 +10,7 @@
    ===================================================================== */
 
 import type { AuroraDirection, TransitionKind } from './modes';
+import { pointAtArc, resampleStroke, type PathSample, type StrokePoint } from './stroke';
 
 /** 一层的几何与排版描述(由 main.ts 计算后传入,weathering 不读 DOM 实时状态) */
 export interface LayerSpec {
@@ -28,10 +29,15 @@ export interface LayerSpec {
 /** 转场行为(由 main.ts 依据当前氛围模式传入):
  *  ash    星河 —— 行尾先剥落,向上向右斜升(默认,保持原风化观感)
  *  fog    雾海 —— 横向弥散,聚合更缓慢柔和
- *  ribbon 极光 —— 沿指定方向被牵引成带状飘走/汇聚 */
+ *  ribbon 极光 —— 沿用户拖出的笔画路径被牵引成带状飘走/汇聚;
+ *                 无 path 时退回 direction 的四方向兜底(键盘/历史调用)。 */
 export interface TransitionOptions {
   kind?: TransitionKind;
   direction?: AuroraDirection;
+  /** 极光拖拽的重采样路径(等弧长,来自 stroke.ts resampleStroke/syntheticPathFor) */
+  path?: PathSample[];
+  /** path 的真实像素弧长(由 stroke.ts strokeLength 计算,用于沿路径的位移换算) */
+  pathLengthPx?: number;
 }
 
 interface Particle {
@@ -50,6 +56,8 @@ interface Particle {
   dur: number; // 单粒子动画时长(s)
   phase: number; // 风场 sin 相位
   mode: 0 | 1; // 0=disperse 1=assemble
+  pathArc0: number; // ribbon+path 专用:粒子投影到路径上的起始弧长位置(px)
+  pathPerp: number; // ribbon+path 专用:粒子相对路径的法向偏移(px)
 }
 
 interface Ash {
@@ -86,6 +94,14 @@ export class Weathering {
   private pool: Particle[] = [];
 
   private transKind: TransitionKind = 'ash';
+  private durationScale = 1;
+  private activePath: PathSample[] | null = null;
+  private activePathLengthPx = 0;
+
+  private previewPoints: StrokePoint[] = [];
+  private previewActive = false;
+  private previewFading = false;
+  private previewFadeAlpha = 1;
 
   private rafId = 0;
   private running = false;
@@ -236,6 +252,8 @@ export class Weathering {
       p.dur = DISP_DUR;
       p.phase = (ox + oy) * 0.01;
       p.mode = 0;
+      p.pathArc0 = 0;
+      p.pathPerp = 0;
       return p;
     }
     return {
@@ -254,7 +272,33 @@ export class Weathering {
       dur: DISP_DUR,
       phase: (ox + oy) * 0.01,
       mode: 0,
+      pathArc0: 0,
+      pathPerp: 0,
     };
+  }
+
+  /** 将 (x,y) 投影到重采样路径上最近的样点,返回该点的弧长位置(px)与法向偏移(px) */
+  private projectOntoPath(
+    x: number,
+    y: number,
+    path: PathSample[],
+    pathLengthPx: number,
+  ): { arcPx: number; perp: number } {
+    let bestIndex = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < path.length; i += 1) {
+      const d = (path[i].x - x) ** 2 + (path[i].y - y) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        bestIndex = i;
+      }
+    }
+    const sample = path[bestIndex];
+    const dx = x - sample.x;
+    const dy = y - sample.y;
+    // 叉积符号给出法向的左右侧(切线逆时针 90° 为正)
+    const perp = dx * -sample.tangentY + dy * sample.tangentX;
+    return { arcPx: sample.arc * pathLengthPx, perp };
   }
 
   /** 主转场:fromSpec 飘散 → toSpec 聚合 */
@@ -271,6 +315,10 @@ export class Weathering {
     const direction = options.direction ?? 'none';
     const dirX = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
     const dirY = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
+    const path = kind === 'ribbon' && options.path && options.path.length > 1 ? options.path : null;
+    const pathLengthPx = options.pathLengthPx ?? 0;
+    this.activePath = path;
+    this.activePathLengthPx = pathLengthPx;
 
     const fromP = this.sample(fromSpec);
     const toP = this.sample(toSpec);
@@ -296,8 +344,16 @@ export class Weathering {
         p.delay = Math.abs(0.5 - nx) * 0.7;
         p.vx = (nx - 0.5) * 2.2 + (nx < 0.5 ? -0.35 : 0.35);
         p.vy = Math.sin(p.phase * 3.7) * 0.4;
+      } else if (kind === 'ribbon' && path) {
+        // 极光(拖拽织光):投影到手绘路径,沿路径的弧长位置决定启动延迟与行进速度,
+        // 笔画越长(pathLengthPx 越大)粒子行程越长 —— "画得越久,光带越绵长"。
+        const proj = this.projectOntoPath(p.ox, p.oy, path, pathLengthPx);
+        p.pathArc0 = proj.arcPx;
+        p.pathPerp = proj.perp;
+        p.delay = (proj.arcPx / Math.max(1, pathLengthPx)) * 0.4;
+        p.vx = 0.55 + Math.abs(Math.sin(p.phase)) * 0.35;
       } else if (kind === 'ribbon') {
-        // 极光:沿方向被强力牵引成带,叠加正弦扰动
+        // 极光兜底(无笔画路径,如键盘操作):沿方向被强力牵引成带,叠加正弦扰动
         p.delay = nx * 0.35;
         p.vx = dirX * (1.6 + Math.abs(Math.sin(p.phase)) * 1.6) + 0.4;
         p.vy = dirY * (1.2 + Math.abs(Math.cos(p.phase)) * 1.1) - 0.15;
@@ -328,8 +384,14 @@ export class Weathering {
         p.sx = p.ox + (nx - 0.5) * 80;
         p.sy = p.oy + Math.sin(p.phase) * 10;
         p.dur = ASM_DUR * 1.25;
+      } else if (kind === 'ribbon' && path) {
+        // 极光(拖拽织光):从路径末端切线方向汇入,呼应粒子沿手绘轨迹抵达的方向
+        const tail = path[path.length - 1];
+        p.sx = p.ox - tail.tangentX * 70 + Math.sin(p.phase) * 18;
+        p.sy = p.oy - tail.tangentY * 70 + Math.cos(p.phase) * 14;
+        p.dur = ASM_DUR * 0.9;
       } else if (kind === 'ribbon') {
-        // 极光:自方向反侧汇入
+        // 极光兜底:自方向反侧汇入
         p.sx = p.ox - dirX * 70 + Math.sin(p.phase) * 18;
         p.sy = p.oy - dirY * 50 + Math.cos(p.phase) * 14;
         p.dur = ASM_DUR * 0.9;
@@ -343,6 +405,7 @@ export class Weathering {
     }
 
     this.tParticles = fromP.concat(toP);
+    this.scaleTiming(this.tParticles);
     this.startT = performance.now();
     this.onDone = undefined;
 
@@ -350,6 +413,51 @@ export class Weathering {
       this.onDone = resolve;
       this.startLoop();
     });
+  }
+
+  /** 按当前 pacing 缩放本次转场的粒子时长/延迟(1.0 = steady 基准) */
+  private scaleTiming(particles: Particle[]): void {
+    if (this.durationScale === 1) return;
+    for (const p of particles) {
+      p.dur *= this.durationScale;
+      p.delay *= this.durationScale;
+    }
+  }
+
+  /** pacing → 转场节奏缩放(由 main.ts 依据 AI 返回的 pacing 字段设置) */
+  setDurationScale(scale: number): void {
+    this.durationScale = Math.max(0.5, Math.min(2, scale));
+  }
+
+  // ---------- 极光「拖拽织光」:笔画进行中的实时光点预览 ----------
+  /** 开始记录一次新笔画的预览(main.ts 在 pointerdown 时调用) */
+  beginStrokePreview(): void {
+    this.previewPoints = [];
+    this.previewFading = false;
+    this.previewFadeAlpha = 1;
+    this.previewActive = true;
+    if (!this.running) {
+      this.startT = performance.now();
+      this.startLoop();
+    }
+  }
+
+  /** 笔画进行中持续调用,直接复用 stroke.ts 记录的点(视口坐标) */
+  updateStrokePreview(points: StrokePoint[]): void {
+    if (!this.previewActive) return;
+    this.previewPoints = points;
+  }
+
+  /** 松手时结束预览:commit=true(已提交推进)时瞬时清空,否则淡出反馈"未达阈值,合拢" */
+  endStrokePreview(commit: boolean): void {
+    this.previewActive = false;
+    if (commit) {
+      this.previewPoints = [];
+      this.previewFading = false;
+    } else if (this.previewPoints.length) {
+      this.previewFading = true;
+      this.previewFadeAlpha = 1;
+    }
   }
 
   /** 单纯飘散(第 7 层 → EPILOGUE,无聚合) */
@@ -447,9 +555,35 @@ export class Weathering {
       ctx.globalAlpha = 1;
     }
 
+    // —— 极光笔画实时预览(未提交前的光点轨迹,松手未达阈值时淡出反馈"合拢") ——
+    if (this.previewPoints.length) {
+      if (this.previewFading) {
+        this.previewFadeAlpha = Math.max(0, this.previewFadeAlpha - 0.045);
+        if (this.previewFadeAlpha <= 0) {
+          this.previewPoints = [];
+          this.previewFading = false;
+        }
+      }
+      if (this.previewPoints.length) {
+        ctx.globalCompositeOperation = 'lighter';
+        const n = this.previewPoints.length;
+        for (let i = 0; i < n; i += 1) {
+          const pt = this.previewPoints[i];
+          const along = (i + 1) / n; // 0..1,笔尖处最亮
+          ctx.globalAlpha = this.previewFadeAlpha * (0.25 + along * 0.55);
+          const s = 4 + along * 5;
+          ctx.drawImage(this.sprite, pt.x - s / 2, pt.y - s / 2, s, s);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+    }
+
     // 过渡粒子是否仍在进行(灰烬是 stage4+ 常驻的独立装饰,不计入转场时长)
     const transitionActive =
-      this.tParticles.length > 0 && elapsed < TOTAL_DUR + 0.3;
+      this.tParticles.length > 0 &&
+      elapsed < (TOTAL_DUR + 0.3) * this.durationScale;
+    const previewActive = this.previewPoints.length > 0;
 
     // 过渡结束 → 回收过渡粒子,并立即兑现转场 Promise。
     // 关键:onDone 绝不能被灰烬阻塞 —— 否则 stage4+(灰烬常驻)时
@@ -464,8 +598,8 @@ export class Weathering {
       cb();
     }
 
-    // 转场与灰烬都无事可做时才真正停机并清空画布
-    if (!transitionActive && this.ashParticles.length === 0) {
+    // 转场、灰烬、笔画预览都无事可做时才真正停机并清空画布
+    if (!transitionActive && !previewActive && this.ashParticles.length === 0) {
       this.running = false;
       this.rafId = 0;
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -508,8 +642,35 @@ export class Weathering {
       p.vx *= 0.996;
       p.alpha = 0.8 * life * life;
       p.size = p.bsize * (0.5 + 1.0 * life); // 先微膨胀再稀释
+    } else if (this.transKind === 'ribbon' && this.activePath) {
+      // 极光(拖拽织光):先被吸上光带(riseT,0.35s 内完成),再沿弧长前移;
+      // 越过笔画末端(arcPx > 总长)后沿末端切线继续直线飘远,笔画越长行程越远。
+      const path = this.activePath;
+      const totalLenPx = Math.max(1, this.activePathLengthPx);
+      const travelScale = Math.max(0.8, Math.min(1.6, totalLenPx / 400));
+      const riseT = Math.min(1, localT / 0.35);
+      const arcPx = p.pathArc0 + p.vx * 260 * localT * travelScale;
+      const shimmer = Math.sin(elapsed * 3.2 + p.phase * 4) * 6;
+      const perp = p.pathPerp * (1 - riseT) + shimmer * riseT;
+
+      let onPathX: number;
+      let onPathY: number;
+      if (arcPx <= totalLenPx) {
+        const sample = pointAtArc(path, arcPx / totalLenPx);
+        onPathX = sample.x - sample.tangentY * perp;
+        onPathY = sample.y + sample.tangentX * perp;
+      } else {
+        const tail = path[path.length - 1];
+        const overshoot = arcPx - totalLenPx;
+        onPathX = tail.x + tail.tangentX * overshoot - tail.tangentY * perp;
+        onPathY = tail.y + tail.tangentY * overshoot + tail.tangentX * perp;
+      }
+      p.x = p.ox + (onPathX - p.ox) * riseT;
+      p.y = p.oy + (onPathY - p.oy) * riseT;
+      p.alpha = 0.9 * life;
+      p.size = p.bsize * (0.35 + 0.65 * life);
     } else if (this.transKind === 'ribbon') {
-      // 极光:沿方向被强力拉成流光带,尾部微微加速
+      // 极光兜底(无笔画路径,如键盘操作):沿方向被强力拉成流光带,尾部微微加速
       const shimmer = Math.sin(elapsed * 3.2 + p.phase * 4) * 0.45;
       p.x += p.vx * 2.4 + shimmer * 0.6;
       p.y += p.vy * 2.4;
@@ -613,6 +774,9 @@ export class Weathering {
     this.stopAsh();
     this.recycleAll();
     this.ashParticles.length = 0;
+    this.previewPoints = [];
+    this.previewActive = false;
+    this.previewFading = false;
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
   }
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   fallbackExperience,
+  isSafeAcknowledgment,
   isSafeEcho,
+  isSafeWhisper,
   normalizeExperience,
   SIP_COUNT,
 } from './experience';
@@ -25,19 +27,23 @@ describe('six-sip AI experience contract', () => {
       normalizeExperience(
         {
           stages,
+          whispers: ['a', 'b', 'c', 'd', 'e', 'f'],
+          acknowledgment: 'The weight of it is plain to see.',
           emotion: 'regret',
           soundtrack: 'rain-at-dusk',
           pacing: 'deep',
-          echo: 'What happened can rest.',
+          echo: 'What happened can rest, and you may walk on.',
         },
         'en',
       ),
     ).toEqual({
       stages,
+      whispers: ['a', 'b', 'c', 'd', 'e', 'f'],
+      acknowledgment: 'The weight of it is plain to see.',
       emotion: 'regret',
       soundtrack: 'rain-at-dusk',
       pacing: 'deep',
-      echo: 'What happened can rest.',
+      echo: 'What happened can rest, and you may walk on.',
       source: 'ai',
     });
   });
@@ -101,9 +107,57 @@ describe('six-sip AI experience contract', () => {
     },
   );
 
+  it('defaults whispers to all null when the field is missing or malformed', () => {
+    expect(normalizeExperience({ stages }, 'en').whispers).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(
+      normalizeExperience({ stages, whispers: 'not-an-array' }, 'en').whispers,
+    ).toEqual([null, null, null, null, null, null]);
+  });
+
+  it('normalizes whispers per slot, dropping only the unsafe entries', () => {
+    const result = normalizeExperience(
+      {
+        stages,
+        whispers: ['fine.', 'You must forget this now.', '', 42, 'also fine.'],
+      },
+      'en',
+    );
+    expect(result.whispers).toEqual([
+      'fine.',
+      null,
+      null,
+      null,
+      'also fine.',
+      null,
+    ]);
+  });
+
+  it('defaults acknowledgment to null when missing or unsafe', () => {
+    expect(normalizeExperience({ stages }, 'en').acknowledgment).toBeNull();
+    expect(
+      normalizeExperience(
+        { stages, acknowledgment: 'You must let this go now.' },
+        'en',
+      ).acknowledgment,
+    ).toBeNull();
+    expect(
+      normalizeExperience(
+        { stages, acknowledgment: 'The weight of it is plain to see.' },
+        'en',
+      ).acknowledgment,
+    ).toBe('The weight of it is plain to see.');
+  });
+
   it('applies the language-specific echo limits', () => {
-    const enAtLimit = `The memory ${'x'.repeat(129)}`;
-    const zhAtLimit = `那段记忆${'界'.repeat(38)}`;
+    const enAtLimit = `The memory ${'x'.repeat(149)}`;
+    const zhAtLimit = `那段记忆${'界'.repeat(44)}`;
 
     expect(
       normalizeExperience(
@@ -126,7 +180,7 @@ describe('six-sip AI experience contract', () => {
   });
 
   it('measures echo length by visible Unicode code points', () => {
-    const atLimit = `The memory ${'🌙'.repeat(129)}`;
+    const atLimit = `The memory ${'🌙'.repeat(149)}`;
 
     expect(
       normalizeExperience({ stages, echo: atLimit }, 'en').echo,
@@ -140,80 +194,62 @@ describe('six-sip AI experience contract', () => {
     ['What happened remains true; the weight can rest.', 'en'],
     ['The memory can grow quiet.', 'en'],
     ['That memory can grow lighter.', 'en'],
-    ['That moment can remain without its weight.', 'en'],
-    ['The past can settle here.', 'en'],
-    ['Some things grow lighter with time.', 'en'],
+    ['This bowl held more sweetness than bitterness. Walk on.', 'en'],
+    ['You carried it a long way. It is lighter now.', 'en'],
     ['那段记忆可以渐渐安静。', 'zh'],
     ['那件事依然真实，也可以变轻。', 'zh'],
-    ['那个瞬间可以留在远处。', 'zh'],
-    ['曾经发生过，也可以安静下来。', 'zh'],
-    ['前尘可以轻轻落下。', 'zh'],
-    ['有些事会慢慢变轻。', 'zh'],
-  ] as const)('allows a neutral echo: %s', (echo, lang) => {
+    ['这碗汤里，甜比苦多。往前走吧，桥那头有光。', 'zh'],
+    ['你带着它走了很远。现在轻一些了。', 'zh'],
+  ] as const)('allows a Meng Po-voiced echo: %s', (echo, lang) => {
     expect(isSafeEcho(echo, lang)).toBe(true);
     expect(normalizeExperience({ stages, echo }, lang).echo).toBe(echo);
   });
 
   it.each([
     ['You ought to forgive them.', 'en'],
+    ['You should let it go.', 'en'],
+    ['You need to forgive.', 'en'],
+    ['You must move on.', 'en'],
     ['Everything will get better.', 'en'],
     ['I am your late mother; I forgive you.', 'en'],
-    ['你最好放下。', 'zh'],
+    ['As your therapist, I know best.', 'en'],
+    ['Speaking as your mother, I forgive you.', 'en'],
+    ['You are diagnosed with depression.', 'en'],
+    ['You are healed and recovered with closure.', 'en'],
+    ['你应该放下。', 'zh'],
+    ['你需要原谅。', 'zh'],
+    ['你必须向前走。', 'zh'],
     ['你会康复。', 'zh'],
     ['我就是你去世的妈妈，我原谅你。', 'zh'],
-    ['It happened… You can move on.', 'en'],
-  ] as const)('rejects an adversarial echo: %s', (echo, lang) => {
+    ['作为你的治疗师，我知道答案。', 'zh'],
+    ['你已经痊愈，一定会好，彻底走出。', 'zh'],
+    ['It happened. It can rest. You may finally move on.', 'en'],
+  ] as const)('rejects an unsafe generated echo: %s', (echo, lang) => {
     expect(isSafeEcho(echo, lang)).toBe(false);
     expect(normalizeExperience({ stages, echo }, lang).echo).toBeNull();
   });
 
-  it.each([
-    'It happened.\nIt can rest.',
-    'It happened. It can rest.',
-    'You should let it go.',
-    'You need to forgive.',
-    'You must move on.',
-    'You are diagnosed with depression.',
-    'This is an anxiety disorder.',
-    'You are healed and recovered with closure.',
-    'As your therapist, I know best.',
-    'Speaking as your mother, I forgive you.',
-    '你应该放下。',
-    '你需要原谅。',
-    '你必须向前走。',
-    '这是抑郁症诊断。',
-    '这是焦虑症。',
-    '你已经痊愈，一定会好，彻底走出。',
-    '作为你的治疗师，我知道答案。',
-    '我是你已故的母亲，我原谅你。',
-  ])('rejects an unsafe generated echo: %s', (echo) => {
-    const lang = /[\u3400-\u9fff]/u.test(echo) ? 'zh' : 'en';
+  it('rejects an echo with more than two sentences', () => {
+    const echo = 'It happened. It can rest. Now walk on.';
+    expect(isSafeEcho(echo, 'en')).toBe(false);
+    expect(normalizeExperience({ stages, echo }, 'en').echo).toBeNull();
+  });
 
-    expect(isSafeEcho(echo, lang)).toBe(false);
+  it('rejects a whisper or acknowledgment that exceeds their tighter limits', () => {
+    expect(isSafeWhisper('fine, and gentle enough to pass.', 'en')).toBe(true);
     expect(
-      normalizeExperience(
-        {
-          stages,
-          emotion: 'regret',
-          soundtrack: 'rain-at-dusk',
-          pacing: 'deep',
-          echo,
-        },
-        lang,
-      ),
-    ).toMatchObject({
-      stages,
-      emotion: 'regret',
-      soundtrack: 'rain-at-dusk',
-      pacing: 'deep',
-      echo: null,
-      source: 'ai',
-    });
+      isSafeWhisper('a'.repeat(71), 'en'),
+    ).toBe(false);
+    expect(
+      isSafeAcknowledgment('a'.repeat(101), 'en'),
+    ).toBe(false);
   });
 
   it('builds a complete fallback experience and rejects incomplete stages', () => {
     expect(fallbackExperience(stages)).toEqual({
       stages,
+      whispers: [null, null, null, null, null, null],
+      acknowledgment: null,
       emotion: 'release',
       soundtrack: 'looking-back',
       pacing: 'steady',

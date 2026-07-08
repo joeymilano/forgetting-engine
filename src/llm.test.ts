@@ -20,6 +20,8 @@ describe('parseExperiencePayload', () => {
       parseExperiencePayload(
         JSON.stringify({
           stages,
+          whispers: ['a', 'b', 'c', 'd', 'e', 'f'],
+          acknowledgment: 'The weight of it is plain to see.',
           emotion: 'regret',
           soundtrack: 'rain-at-dusk',
           pacing: 'deep',
@@ -29,6 +31,8 @@ describe('parseExperiencePayload', () => {
       ),
     ).toEqual({
       stages,
+      whispers: ['a', 'b', 'c', 'd', 'e', 'f'],
+      acknowledgment: 'The weight of it is plain to see.',
       emotion: 'regret',
       soundtrack: 'rain-at-dusk',
       pacing: 'deep',
@@ -85,6 +89,8 @@ Model suffix`;
       ),
     ).toEqual({
       stages,
+      whispers: [null, null, null, null, null, null],
+      acknowledgment: null,
       emotion: 'release',
       soundtrack: 'looking-back',
       pacing: 'steady',

@@ -7,7 +7,9 @@
    - 标签页隐藏时停 rAF,可见时恢复
    ===================================================================== */
 
+import type { Emotion } from './experience';
 import type { ParticleField } from './modes';
+import { blendTintStops, EMOTION_TINTS } from './emotion-visuals';
 
 export type AmbientTheme = 'stardust' | 'mist' | 'aurora';
 
@@ -20,6 +22,8 @@ const THEME_TINTS: Record<AmbientTheme, [string, string, string]> = {
   // 极光:青绿透粉(北光 / 流光)
   aurora: ['rgba(222,250,232,1)', 'rgba(158,240,202,0.5)', 'rgba(140,224,190,0)'],
 };
+
+let currentEmotion: Emotion | null = null;
 
 const canvas = document.getElementById('ambient-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -112,10 +116,22 @@ function makeSprite(tint: [string, string, string] = THEME_TINTS.stardust): HTML
   return s;
 }
 
+function activeTint(): [string, string, string] {
+  const base = THEME_TINTS[currentTheme];
+  if (!currentEmotion) return base;
+  return blendTintStops(base, EMOTION_TINTS[currentEmotion]);
+}
+
 /** 主题切换:重新生成对应色调的粒子精灵 */
 export function setAmbientTheme(theme: AmbientTheme): void {
   currentTheme = theme;
-  sprite = makeSprite(THEME_TINTS[theme]);
+  sprite = makeSprite(activeTint());
+}
+
+/** 情绪驱动视觉:与当前主题色调按比例混合,null 还原为纯主题色调 */
+export function setEmotionTint(emotion: Emotion | null): void {
+  currentEmotion = emotion;
+  sprite = makeSprite(activeTint());
 }
 
 export function setAmbientField(field: ParticleField): void {

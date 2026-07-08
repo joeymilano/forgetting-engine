@@ -95,7 +95,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
   }
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
+  const timer = setTimeout(() => ctrl.abort(), 18000);
   try {
     const resp = await fetch(`${BASE}/chat/completions`, {
       method: 'POST',

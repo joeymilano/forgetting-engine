@@ -45,16 +45,25 @@ describe('six-sip model prompts', () => {
     );
   });
 
-  it('scopes the impersonal safety rules to echo while preserving stage voice', () => {
-    expect(promptFor('en')).toContain('[ECHO-ONLY SAFETY BOUNDARIES]');
+  it('scopes the AI commentary safety rules to whispers/acknowledgment/echo while preserving stage voice', () => {
+    expect(promptFor('en')).toContain('SAFETY BOUNDARIES FOR AI COMMENTARY');
     expect(promptFor('en')).toContain(
       "stages may and should preserve the memory's original narrative voice, including first person.",
     );
-    expect(promptFor('zh')).toContain('【仅适用于 echo 的安全边界】');
+    expect(promptFor('zh')).toContain('AI 点评的安全边界');
     expect(promptFor('zh')).toContain(
       'stages 可以并应保留原记忆的叙述人称，包括第一人称。',
     );
   });
+
+  it.each(['zh', 'en'] as const)(
+    'requires whispers and acknowledgment fields alongside the six-sip contract in %s',
+    (lang) => {
+      const prompt = promptFor(lang);
+      expect(prompt).toContain('"whispers"');
+      expect(prompt).toContain('"acknowledgment"');
+    },
+  );
 
   it('passes actionable upstream statuses through and maps server errors to 502', () => {
     for (const status of [400, 401, 403, 404, 429]) {

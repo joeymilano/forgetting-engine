@@ -172,14 +172,17 @@ export async function generateExperience(
     new URLSearchParams(location.search).has('demo');
   if (demoOn) {
     const { pickDemo } = await import('./demo-data');
+    const demo = pickDemo(lang);
     return {
       ...normalizeExperience(
         {
-          stages: pickDemo(lang),
-          emotion: 'release',
-          soundtrack: 'looking-back',
-          pacing: 'steady',
-          echo: null,
+          stages: demo.stages,
+          whispers: demo.whispers,
+          acknowledgment: demo.acknowledgment,
+          emotion: demo.emotion,
+          soundtrack: demo.soundtrack,
+          pacing: demo.pacing,
+          echo: echoEnabled ? demo.echo : null,
         },
         lang,
       ),
@@ -189,7 +192,7 @@ export async function generateExperience(
 
   const attempt = async (): Promise<ExperienceResult> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
       return await callOnce(memory, lang, echoEnabled, controller.signal);
     } finally {

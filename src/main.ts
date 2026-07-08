@@ -5,11 +5,18 @@
    ===================================================================== */
 
 import { STAGES, type StageVisual } from './stages';
-import { SIP_COUNT } from './experience';
+import { SIP_COUNT, type ExperienceResult } from './experience';
 import { typewriter } from './typewriter';
-import { generateStages } from './llm';
+import { generateExperience } from './llm';
 import { Weathering, type LayerSpec } from './weathering';
-import { initAmbient, emitEmberBurst, setAmbientField, setAmbientTheme } from './ambient';
+import {
+  initAmbient,
+  emitEmberBurst,
+  setAmbientField,
+  setAmbientTheme,
+  setEmotionTint,
+} from './ambient';
+import { PACING_DURATION_SCALE, PACING_TIMING } from './emotion-visuals';
 import {
   type AmbientMode,
   type AuroraDirection,
@@ -20,6 +27,17 @@ import {
   nextAmbientMode,
   normalizeAmbientMode,
 } from './modes';
+import {
+  appendPoint,
+  isStrokeCommitted,
+  resampleStroke,
+  strokeLength,
+  strokeNetDirection,
+  syntheticPathFor,
+  SYNTHETIC_PATH_LENGTH_PX,
+  type PathSample,
+  type StrokePoint,
+} from './stroke';
 import { applyLang, getLang, t, toggleLang, type Lang } from './i18n';
 import { initMusic } from './music';
 import { initMemoryStars, addMemoryStar } from './memory-stars';
@@ -36,6 +54,8 @@ const charCount = document.getElementById('char-count')!;
 const stageText = document.getElementById('stage-text') as HTMLElement;
 const stageBtn = document.getElementById('stage-btn') as HTMLButtonElement;
 const loadingLine = document.getElementById('loading-line') as HTMLElement;
+const aiAcknowledgment = document.getElementById('ai-acknowledgment') as HTMLElement;
+const stageWhisper = document.getElementById('stage-whisper') as HTMLElement;
 const epiloguePrimary = document.getElementById('epilogue-primary')!;
 const epilogueSecondary = document.getElementById('epilogue-secondary')!;
 const resetLink = document.getElementById('reset-link') as HTMLAnchorElement;
@@ -60,11 +80,19 @@ let state: State = 'IDLE';
 let stages: string[] = [];
 let currentIdx = 0; // 1..SIP_COUNT(6）
 let isTransitioning = false;
+let musicController: ReturnType<typeof initMusic> | null = null;
+let currentExperience: ExperienceResult | null = null;
+let onboardingController: ReturnType<typeof initOnboarding> | null = null;
 let mistHoldStart = 0;
 let mistHoldFrame = 0;
 let mistHolding = false;
-let auroraPointerStart: { x: number; y: number } | null = null;
 let auroraDirection: AuroraDirection = 'none';
+let auroraStroke: StrokePoint[] = [];
+let auroraStrokeActive = false;
+let auroraStrokePointerId: number | null = null;
+let auroraHintTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingAuroraPath: PathSample[] | null = null;
+let pendingAuroraPathLengthPx = 0;
 let sealingTimers: ReturnType<typeof setTimeout>[] = [];
 let epilogueTimers: ReturnType<typeof setTimeout>[] = [];
 
@@ -340,6 +368,25 @@ function renderMemoryList(): void {
     });
 }
 
+// ---------- AI 在场:落笔回应 / 情绪视觉 ----------
+function showAcknowledgment(text: string): void {
+  aiAcknowledgment.textContent = text;
+  aiAcknowledgment.hidden = false;
+  aiAcknowledgment.classList.add('shown');
+}
+
+function hideAcknowledgment(): void {
+  aiAcknowledgment.classList.remove('shown');
+  aiAcknowledgment.hidden = true;
+  aiAcknowledgment.textContent = '';
+}
+
+function applyExperienceVisuals(experience: ExperienceResult): void {
+  setEmotionTint(experience.emotion);
+  weathering.setDurationScale(PACING_DURATION_SCALE[experience.pacing]);
+  musicController?.applySuggestedTrack(experience.soundtrack);
+}
+
 // ---------- SEALING ----------
 async function enterSealing() {
   setState('SEALING');
@@ -347,6 +394,8 @@ async function enterSealing() {
   lastMemory = memory;
   lastMemoryLang = getLang();
   submitBtn.disabled = true;
+  currentExperience = null;
+  hideAcknowledgment();
 
   // writing 淡出
   writingView.classList.add('fading-out');
@@ -376,16 +425,40 @@ async function enterSealing() {
   };
   rotateLoading();
 
-  // 并行:打字机重现原文 + 一次性请求 7 层(带语言)
-  const [, generated] = await Promise.all([
+  // 落笔即回应:一旦 AI 结果到达就立刻呈现回应 + 情绪视觉,
+  // 不等打字机播完 —— 二者本就并行请求(见下方 Promise.all)。
+  let ackShownAt = 0;
+  const echoEnabled = onboardingController?.isEchoEnabled() ?? true;
+  const experiencePromise = generateExperience(memory, getLang(), echoEnabled).then(
+    (experience) => {
+      currentExperience = experience;
+      applyExperienceVisuals(experience);
+      if (experience.acknowledgment) {
+        ackShownAt = performance.now();
+        showAcknowledgment(experience.acknowledgment);
+      }
+      return experience;
+    },
+  );
+
+  // 并行:打字机重现原文 + 一次性请求六口体验(文本 + 低语 + 回应 + 情绪参数)
+  const [, experience] = await Promise.all([
     typewriter(stageText, fullText, 50),
-    generateStages(memory, getLang()),
+    experiencePromise,
   ]);
 
-  stages = generated;
+  stages = experience.stages;
   sealingTimers.forEach((t) => clearTimeout(t));
   sealingTimers = [];
   loadingLine.hidden = true;
+
+  // 回应至少停留可读时长(按 pacing 缩放),再让位给第一口
+  if (ackShownAt) {
+    const holdMs = PACING_TIMING[experience.pacing].acknowledgmentHoldMs;
+    const remaining = holdMs - (performance.now() - ackShownAt);
+    if (remaining > 0) await wait(remaining);
+  }
+  hideAcknowledgment();
 
   // 进入第 1 层(原文 → 第1层 粒子转场)
   currentIdx = 1;
@@ -406,6 +479,7 @@ async function gotoStage(nextIdx: number) {
   // stage-text 带 filter: blur() + will-change,visibility 切换会销毁/重建
   // 它的合成层,Chrome 重建带滤镜的层时会闪黑色矩形(黑块闪烁根因之一)。
   // opacity 只走合成器,层常驻,不触发重栅格化。
+  stageWhisper.classList.remove('shown');
   stageText.style.transition = 'none';
   stageText.style.opacity = '0';
   applyStage(nextIdx);
@@ -413,11 +487,18 @@ async function gotoStage(nextIdx: number) {
   const toSpec = specFromEl();
 
   // 粒子转场:按当前氛围模式选择风化方式(ash / fog / ribbon)。
+  // 极光的 ribbon 优先沿本次笔画路径(拖拽织光);无笔画(键盘操作)时退回四方向兜底。
   const behavior = getModeBehavior(activeMode());
   const direction = activeMode() === 'aurora' ? auroraDirection : 'none';
+  const path = activeMode() === 'aurora' ? pendingAuroraPath : null;
+  const pathLengthPx = activeMode() === 'aurora' ? pendingAuroraPathLengthPx : 0;
+  pendingAuroraPath = null;
+  pendingAuroraPathLengthPx = 0;
   await weathering.transition(fromSpec, toSpec, {
     kind: behavior.transitionKind,
     direction,
+    path: path ?? undefined,
+    pathLengthPx,
   });
 
   // 恢复显示:仍在 transition:none 下瞬时恢复,再解除禁用,
@@ -441,6 +522,11 @@ function updateStageChrome(idx: number) {
   updateProgress(idx);
   if (idx >= 4) weathering.startAsh(() => stageText);
   else weathering.stopAsh();
+
+  const whisper = currentExperience?.whispers[idx - 1] ?? t().genericWhispers[idx - 1];
+  stageWhisper.textContent = whisper;
+  stageWhisper.hidden = false;
+  requestAnimationFrame(() => stageWhisper.classList.add('shown'));
 }
 
 // ---------- EPILOGUE ----------
@@ -468,21 +554,27 @@ async function enterEpilogue() {
   addMemoryStar();
   renderMemoryList();
 
-  // 3 秒静默后浮现系统低语
+  // 静默后浮现孟婆点评(AI echo,若不可用则退回固定文案);时长随 pacing 缩放
+  const pacing = currentExperience?.pacing ?? 'steady';
+  const timing = PACING_TIMING[pacing];
+  const primaryLine = currentExperience?.echo ?? t().epiloguePrimary;
   epilogueTimers.push(
     setTimeout(() => {
       epilogueView.hidden = false;
-      epiloguePrimary.textContent = t().epiloguePrimary;
+      epiloguePrimary.textContent = primaryLine;
       epiloguePrimary.classList.add('shown');
-    }, 3000),
+    }, timing.epilogueSilenceMs),
   );
-  // 再 4 秒后次级文字 + 重置入口
+  // 静默 + 次级延迟后,次级文字 + 重置入口
   epilogueTimers.push(
-    setTimeout(() => {
-      epilogueSecondary.textContent = t().epilogueSecondary;
-      epilogueSecondary.classList.add('shown');
-      resetLink.hidden = false;
-    }, 7000),
+    setTimeout(
+      () => {
+        epilogueSecondary.textContent = t().epilogueSecondary;
+        epilogueSecondary.classList.add('shown');
+        resetLink.hidden = false;
+      },
+      timing.epilogueSilenceMs + timing.epilogueSecondaryDelayMs,
+    ),
   );
   isTransitioning = false;
 }
@@ -499,6 +591,13 @@ async function reset() {
   stages = [];
   currentIdx = 0;
   isTransitioning = false;
+  currentExperience = null;
+  setEmotionTint(null);
+  weathering.setDurationScale(1);
+  hideAcknowledgment();
+  stageWhisper.classList.remove('shown');
+  stageWhisper.hidden = true;
+  stageWhisper.textContent = '';
   epiloguePrimary.classList.remove('shown');
   epilogueSecondary.classList.remove('shown');
   resetLink.hidden = true;
@@ -532,8 +631,8 @@ submitBtn.addEventListener('click', () => {
   if (!submitBtn.disabled && !isTransitioning) enterSealing();
 });
 stageBtn.addEventListener('click', async (e) => {
-  // Mist 走 hold/release,不在 click 推进;其余模式(stardust / aurora)点击即推进。
-  if (activeMode() === 'mist') return;
+  // Mist 走 hold/release,Aurora 走拖拽/键盘,均不在 click 推进;仅 Stardust 点击即推进。
+  if (activeMode() === 'mist' || activeMode() === 'aurora') return;
   // Stardust 仪式:从点击点迸出一簇上升的余烬。
   if (activeMode() === 'stardust' && !isTransitioning) {
     const bx = e.clientX || stageBtn.getBoundingClientRect().left + stageBtn.offsetWidth / 2;
@@ -579,33 +678,48 @@ stageBtn.addEventListener('keyup', async (e) => {
   await releaseMistHold();
 });
 
-// Aurora:指针在舞台上移动 → 牵引光带方向;方向键改向,Enter/Space 推进。
+// Aurora「拖拽织光」:按住并拖出一道轨迹,文字粒子沿这道笔画汇成光带被牵走;
+// 笔画够长才提交推进,太短则松手回弹(反馈式"合拢")。方向键 + Enter/Space 为键盘兜底。
 stageView.addEventListener('pointerdown', (e) => {
-  if (activeMode() !== 'aurora') return;
-  auroraPointerStart = { x: e.clientX, y: e.clientY };
+  if (activeMode() !== 'aurora' || isTransitioning) return;
+  if ((e.target as HTMLElement | null)?.closest('#stage-btn')) return;
+  auroraStroke = appendPoint([], { x: e.clientX, y: e.clientY, t: e.timeStamp });
+  auroraStrokeActive = true;
+  auroraStrokePointerId = e.pointerId;
+  if (typeof stageView.setPointerCapture === 'function') {
+    stageView.setPointerCapture(e.pointerId);
+  }
+  weathering.beginStrokePreview();
+  weathering.updateStrokePreview(auroraStroke);
 });
 stageView.addEventListener('pointermove', (e) => {
-  if (activeMode() !== 'aurora') return;
-  if (auroraPointerStart) {
-    setAuroraDirection(
-      directionFromDelta(e.clientX - auroraPointerStart.x, e.clientY - auroraPointerStart.y),
-    );
+  if (activeMode() !== 'aurora' || !auroraStrokeActive) return;
+  if (auroraStrokePointerId !== null && e.pointerId !== auroraStrokePointerId) return;
+  auroraStroke = appendPoint(auroraStroke, { x: e.clientX, y: e.clientY, t: e.timeStamp });
+  weathering.updateStrokePreview(auroraStroke);
+  setAuroraDirection(strokeNetDirection(auroraStroke, directionFromDelta));
+});
+stageView.addEventListener('pointerup', async (e) => {
+  if (activeMode() !== 'aurora' || !auroraStrokeActive) return;
+  if (auroraStrokePointerId !== null && e.pointerId !== auroraStrokePointerId) return;
+  const stroke = auroraStroke;
+  const committed = !isTransitioning && isStrokeCommitted(stroke, isMobileViewport());
+  weathering.endStrokePreview(committed);
+  resetAuroraStroke();
+  if (!committed) {
+    flashAuroraTooShort();
+    setAuroraDirection('none');
     return;
   }
-  const rect = stageView.getBoundingClientRect();
-  setAuroraDirection(
-    directionFromDelta(
-      e.clientX - rect.left - rect.width / 2,
-      e.clientY - rect.top - rect.height / 2,
-    ),
-  );
-});
-stageView.addEventListener('pointerup', () => {
-  if (activeMode() !== 'aurora') return;
-  auroraPointerStart = null;
+  pendingAuroraPath = resampleStroke(stroke);
+  pendingAuroraPathLengthPx = strokeLength(stroke);
+  await advanceStage();
 });
 stageView.addEventListener('pointercancel', () => {
-  auroraPointerStart = null;
+  if (!auroraStrokeActive) return;
+  weathering.endStrokePreview(false);
+  resetAuroraStroke();
+  setAuroraDirection('none');
 });
 stageBtn.addEventListener('keydown', async (e) => {
   if (activeMode() !== 'aurora') return;
@@ -613,8 +727,11 @@ stageBtn.addEventListener('keydown', async (e) => {
   else if (e.key === 'ArrowRight') setAuroraDirection('right');
   else if (e.key === 'ArrowUp') setAuroraDirection('up');
   else if (e.key === 'ArrowDown') setAuroraDirection('down');
-  else if (e.key === 'Enter' || e.key === ' ') await advanceStage();
-  else return;
+  else if (e.key === 'Enter' || e.key === ' ') {
+    pendingAuroraPath = syntheticPathFor(auroraDirection);
+    pendingAuroraPathLengthPx = SYNTHETIC_PATH_LENGTH_PX;
+    await advanceStage();
+  } else return;
   e.preventDefault();
 });
 resetLink.addEventListener('click', (e) => {
@@ -667,15 +784,55 @@ function setAuroraDirection(direction: AuroraDirection): void {
   auroraDirection = direction;
   document.body.dataset.auroraDirection = direction;
   stageBtn.dataset.auroraDirection = direction;
-  if (activeMode() === 'aurora') {
+  if (activeMode() === 'aurora' && !auroraHintTimer) {
     const label = t().modeHints.aurora;
     stageBtn.setAttribute('aria-label', label);
     stageBtn.setAttribute('title', label);
   }
 }
 
+function isMobileViewport(): boolean {
+  return window.innerWidth < 768;
+}
+
+/** 笔画未达提交阈值时松手:短暂提示"再画长一点",随后恢复常规提示 */
+function flashAuroraTooShort(): void {
+  if (activeMode() !== 'aurora') return;
+  if (auroraHintTimer) clearTimeout(auroraHintTimer);
+  const label = t().modeHints.auroraTooShort;
+  stageBtn.setAttribute('aria-label', label);
+  stageBtn.setAttribute('title', label);
+  auroraHintTimer = setTimeout(() => {
+    auroraHintTimer = null;
+    if (activeMode() === 'aurora') {
+      const idleLabel = t().modeHints.aurora;
+      stageBtn.setAttribute('aria-label', idleLabel);
+      stageBtn.setAttribute('title', idleLabel);
+    }
+  }, 1200);
+}
+
+function resetAuroraStroke(): void {
+  auroraStroke = [];
+  auroraStrokeActive = false;
+  if (
+    auroraStrokePointerId !== null &&
+    typeof stageView.hasPointerCapture === 'function' &&
+    typeof stageView.releasePointerCapture === 'function' &&
+    stageView.hasPointerCapture(auroraStrokePointerId)
+  ) {
+    stageView.releasePointerCapture(auroraStrokePointerId);
+  }
+  auroraStrokePointerId = null;
+}
+
 function resetAuroraDirection(): void {
-  auroraPointerStart = null;
+  if (auroraHintTimer) {
+    clearTimeout(auroraHintTimer);
+    auroraHintTimer = null;
+  }
+  if (auroraStrokeActive) weathering.endStrokePreview(false);
+  resetAuroraStroke();
   setAuroraDirection('none');
 }
 
@@ -780,13 +937,14 @@ function init() {
   // 先应用语言:填充所有 data-i18n 文案 + 语言按钮 active 态(默认英文)
   applyLang(getLang());
   const onboarding = initOnboarding();
+  onboardingController = onboarding;
 
   applyTheme(detectTheme());
   initAmbient();
   // cursor-glow 的 mousemove 已绑定 → 此时隐藏系统光标才安全。
   // 若本模块加载/执行失败,html 上无 js-ready,系统光标仍可见(见 style.css 兜底)。
   document.documentElement.classList.add('js-ready');
-  initMusic();
+  musicController = initMusic();
   initMemoryStars();
 
   // 已封缄记忆面板:展开 / 收起

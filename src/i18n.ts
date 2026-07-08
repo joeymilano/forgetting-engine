@@ -48,7 +48,10 @@ export interface Strings {
     mistHolding: string;
     mistReady: string;
     aurora: string;
+    auroraTooShort: string;
   };
+  genericWhispers: [string, string, string, string, string, string];
+  genericAcknowledgment: string;
   memoriesTitle: string;
   memoriesSub: string;
   musicPlayer: string;
@@ -96,8 +99,18 @@ const STRINGS: Record<Lang, Strings> = {
       mistIdle: 'Hold to clear the fog',
       mistHolding: 'Keep holding',
       mistReady: 'Release to take the next sip',
-      aurora: 'Move to bend the light',
+      aurora: 'Draw a line to weave the light',
+      auroraTooShort: 'Draw a longer thread',
     },
+    genericWhispers: [
+      'Sweetness, before it fades.',
+      'Heat, loosening its grip.',
+      'Only the outline remains.',
+      'A calm, distant fragment.',
+      'Almost gone now.',
+      'Clear water.',
+    ],
+    genericAcknowledgment: 'It has been read. It is heavier for having been carried.',
     memoriesTitle: 'Sealed Memories',
     memoriesSub: 'What you let go remains here, as light.',
     musicPlayer: 'Memory score player',
@@ -165,8 +178,18 @@ const STRINGS: Record<Lang, Strings> = {
       mistIdle: '按住，让雾散开',
       mistHolding: '继续按住',
       mistReady: '松开，饮下下一口',
-      aurora: '移动，牵引光带',
+      aurora: '画一道轨迹，织出光带',
+      auroraTooShort: '再画长一点',
     },
+    genericWhispers: [
+      '甜，还没散尽。',
+      '辣，正在松开。',
+      '只剩下轮廓了。',
+      '一片平静的残迹。',
+      '快要没有了。',
+      '清水无痕。',
+    ],
+    genericAcknowledgment: '已经读过了。被记住过的,终究更重一些。',
     memoriesTitle: '已封缄的记忆',
     memoriesSub: '你放下的,在此化作光。',
     musicPlayer: '记忆配乐播放器',
