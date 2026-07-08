@@ -45,7 +45,7 @@ test('the Vercel adapter matches the Coding Plan endpoint and handles bad JSON b
 
   assert.match(source, /GLM_BASE_URL/);
   assert.match(source, /https:\/\/open\.bigmodel\.cn\/api\/coding\/paas\/v4/);
-  assert.match(source, /process\.env\.GLM_MODEL \|\| 'glm-4-flash'/);
+  assert.match(source, /process\.env\.GLM_MODEL \|\| 'glm-4\.6'/);
   assert.match(source, /\{ error: 'BAD_BODY' \}/);
 });
 
@@ -54,5 +54,15 @@ test('every API adapter rejects non-object JSON request bodies', () => {
     const source = readFileSync(join(root, path), 'utf8');
     assert.match(source, /isRequestBody\(/, path);
     assert.match(source, /\{ error: 'BAD_BODY' \}/, path);
+  }
+});
+
+test('every API adapter disables GLM extended thinking to stay under the request timeout', () => {
+  // glm-4.6 defaults to a reasoning mode that regularly takes 40-60s for the
+  // full six-sip prompt -- far past the server timeout below. Losing this
+  // flag silently degrades every request back to local fallback copy.
+  for (const path of ['functions/api/forget.ts', 'api/forget.ts', 'server.mjs']) {
+    const source = readFileSync(join(root, path), 'utf8');
+    assert.match(source, /thinking:\s*\{\s*type:\s*'disabled'\s*\}/, path);
   }
 });

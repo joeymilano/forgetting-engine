@@ -14,10 +14,12 @@ interface Env {
 // 智谱 GLM Coding Plan 端点(OpenAI Chat Completion 协议)
 // 参考: https://docs.bigmodel.cn/cn/coding-plan/quick-start
 // ⚠ Coding Plan Key 与普通平台 Key 不通用,务必配套使用同一套端点与 Key
-// ⚠ 默认模型用 glm-4-flash 而非 glm-4.6:后者是推理模型,即使关闭 thinking
-// 完整六饮 prompt 仍常在 18s 服务端超时前无法返回,线上会持续静默降级到本地兜底文案。
+// ⚠ 模型选择经过实测权衡:glm-4.6 默认会思考,完整六饮 prompt 常 40–60s,
+// 远超服务端超时;glm-4-flash 够快(~12s)但指令遵循弱,几乎总是无法把六层
+// 严格递减压缩到位,导致返回被校验拒绝、静默退回本地兜底文案。glm-4.6 关闭
+// thinking 后兼具两者优点:~12–13s 返回,且实测多数样本可通过严格递减校验。
 const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
-const DEFAULT_MODEL = 'glm-4-flash';
+const DEFAULT_MODEL = 'glm-4.6';
 
 const WINDOW = 60 * 60 * 1000;
 const LIMIT = 10;
@@ -108,6 +110,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }): Pr
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.7,
+        thinking: { type: 'disabled' },
         messages: [
           { role: 'system', content: promptFor(lang) },
           { role: 'user', content: userPromptFor(memory, echoEnabled) },

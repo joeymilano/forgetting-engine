@@ -20,10 +20,12 @@ interface Res {
   end(body?: string): void;
 }
 
-// ⚠ 默认模型用 glm-4-flash 而非 glm-4.6:后者是推理模型,完整六饮 prompt
-// 常在 18s 服务端超时前无法返回,会导致线上持续静默降级到本地兜底文案。
+// ⚠ 模型选择经过实测权衡:glm-4.6 默认会思考,完整六饮 prompt 常 40–60s,
+// 远超服务端超时;glm-4-flash 够快(~12s)但指令遵循弱,几乎总是无法把六层
+// 严格递减压缩到位,导致返回被校验拒绝、静默退回本地兜底文案。glm-4.6 关闭
+// thinking 后兼具两者优点:~12–13s 返回,且实测多数样本可通过严格递减校验。
 const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
-const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
+const MODEL = process.env.GLM_MODEL || 'glm-4.6';
 const KEY = process.env.ZHIPU_API_KEY;
 const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
@@ -119,6 +121,7 @@ export default async function handler(req: Req, res: Res) {
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.7,
+        thinking: { type: 'disabled' },
         messages: [
           { role: 'system', content: promptFor(lang) },
           { role: 'user', content: userPromptFor(memory, echoEnabled) },
