@@ -56,6 +56,7 @@ interface Particle {
   dur: number; // 单粒子动画时长(s)
   phase: number; // 风场 sin 相位
   mode: 0 | 1; // 0=disperse 1=assemble
+  finalDispersal: boolean;
   pathArc0: number; // ribbon+path 专用:粒子投影到路径上的起始弧长位置(px)
   pathPerp: number; // ribbon+path 专用:粒子相对路径的法向偏移(px)
 }
@@ -76,6 +77,30 @@ const TOTAL_DUR = 2.8; // 秒
 const DISP_DUR = 1.0; // 单粒子飘散时长
 const ASM_DUR = 0.6; // 单粒子聚合时长
 const ASM_START = 1.6; // 聚合开始(与飘散尾部重叠 0.4s)
+
+export const WEATHERING_EFFECT_PROFILE = {
+  ashTransition: {
+    durationMultiplier: 1,
+    delayMultiplier: 1,
+    driftMultiplier: 1,
+    alphaMultiplier: 0.85,
+    sizeMultiplier: 1,
+  },
+  finalDispersal: {
+    durationMultiplier: 1.95,
+    delayMultiplier: 0.72,
+    driftMultiplier: 1.7,
+    alphaMultiplier: 1.08,
+    sizeMultiplier: 1.35,
+  },
+  ambientAsh: {
+    minCount: 3,
+    maxCount: 6,
+    lifeDecay: 0.0027,
+    alphaMultiplier: 0.86,
+    sizeMultiplier: 1.2,
+  },
+} as const;
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
@@ -249,9 +274,10 @@ export class Weathering {
       p.size = bsize;
       p.alpha = 1;
       p.delay = 0;
-      p.dur = DISP_DUR;
+      p.dur = DISP_DUR * WEATHERING_EFFECT_PROFILE.ashTransition.durationMultiplier;
       p.phase = (ox + oy) * 0.01;
       p.mode = 0;
+      p.finalDispersal = false;
       p.pathArc0 = 0;
       p.pathPerp = 0;
       return p;
@@ -272,6 +298,7 @@ export class Weathering {
       dur: DISP_DUR,
       phase: (ox + oy) * 0.01,
       mode: 0,
+      finalDispersal: false,
       pathArc0: 0,
       pathPerp: 0,
     };
@@ -333,8 +360,9 @@ export class Weathering {
     const xRange = Math.max(1, xMax - xMin);
     for (const p of fromP) {
       const nx = (p.ox - xMin) / xRange; // 0=行首 1=行尾
-      p.dur = DISP_DUR;
+      p.dur = DISP_DUR * WEATHERING_EFFECT_PROFILE.ashTransition.durationMultiplier;
       p.mode = 0;
+      p.finalDispersal = false;
       p.alpha = 1;
       p.size = p.bsize;
       p.x = p.ox;
@@ -359,7 +387,7 @@ export class Weathering {
         p.vy = dirY * (1.2 + Math.abs(Math.cos(p.phase)) * 1.1) - 0.15;
       } else {
         // 星河(默认):行尾→行首依次剥落,如灰烬般向右上腾起
-        p.delay = (1 - nx) * 1.0; // 行尾 delay≈0, 行首 delay≈1.0
+        p.delay = (1 - nx) * WEATHERING_EFFECT_PROFILE.ashTransition.delayMultiplier; // 行尾 delay≈0, 行首 delay≈1.0
         p.vx = 0.6 + Math.abs(Math.sin(p.phase * 7.1)) * 1.5; // 0.6~2.1 向右
         p.vy = -0.9 - Math.abs(Math.cos(p.phase * 5.3)) * 1.2; // -0.9~-2.1 向上
       }
@@ -377,6 +405,7 @@ export class Weathering {
       const nx = (p.ox - axMin) / axRange;
       p.delay = nx * 0.6; // 行首先聚合
       p.mode = 1;
+      p.finalDispersal = false;
       p.alpha = 0;
       p.size = p.bsize * 0.7;
       if (kind === 'fog') {
@@ -475,15 +504,16 @@ export class Weathering {
     const xRange = Math.max(1, xMax - xMin);
     for (const p of fromP) {
       const nx = (p.ox - xMin) / xRange;
-      p.delay = (1 - nx) * 1.0;
-      p.dur = DISP_DUR * 1.4; // 末次飘散更慢、更抒情
+      p.delay = (1 - nx) * WEATHERING_EFFECT_PROFILE.finalDispersal.delayMultiplier;
+      p.dur = DISP_DUR * WEATHERING_EFFECT_PROFILE.finalDispersal.durationMultiplier;
       p.mode = 0;
+      p.finalDispersal = true;
       p.alpha = 1;
       p.size = p.bsize;
       p.x = p.ox;
       p.y = p.oy;
-      p.vx = 0.6 + Math.abs(Math.sin(p.phase * 7.1)) * 1.6;
-      p.vy = -0.9 - Math.abs(Math.cos(p.phase * 5.3)) * 1.3;
+      p.vx = 0.7 + Math.abs(Math.sin(p.phase * 7.1)) * 2.0;
+      p.vy = -1.1 - Math.abs(Math.cos(p.phase * 5.3)) * 1.6;
     }
     this.tParticles = fromP;
     this.startT = performance.now();
@@ -538,7 +568,7 @@ export class Weathering {
       ctx.globalCompositeOperation = 'lighter';
       for (let i = this.ashParticles.length - 1; i >= 0; i--) {
         const a = this.ashParticles[i];
-        a.life -= 0.0035;
+        a.life -= WEATHERING_EFFECT_PROFILE.ambientAsh.lifeDecay;
         if (a.life <= 0) {
           this.ashParticles.splice(i, 1);
           continue;
@@ -546,9 +576,9 @@ export class Weathering {
         a.x += a.vx + Math.sin(now * 0.002 + a.y * 0.01) * 0.25;
         a.y += a.vy;
         a.vy += -0.0015; // 缓慢上飘
-        a.alpha = a.life * 0.7;
+        a.alpha = a.life * WEATHERING_EFFECT_PROFILE.ambientAsh.alphaMultiplier;
         ctx.globalAlpha = a.alpha;
-        const s = a.size * 2.4;
+        const s = a.size * 2.4 * WEATHERING_EFFECT_PROFILE.ambientAsh.sizeMultiplier;
         ctx.drawImage(this.sprite, a.x - s / 2, a.y - s / 2, s, s);
       }
       ctx.globalCompositeOperation = 'source-over';
@@ -681,12 +711,17 @@ export class Weathering {
     } else {
       // 星河:如灰烬腾起 —— 持续上扬加速 + 右飘 + 湍流
       const wind = Math.sin(elapsed * 2.2 + p.y * 0.012) * 0.75;
-      p.vy -= 0.022; // 越飘越快地上扬
-      p.x += p.vx * 1.5 + wind;
-      p.y += p.vy * 1.5;
+      const profile =
+        p.finalDispersal
+          ? WEATHERING_EFFECT_PROFILE.finalDispersal
+          : WEATHERING_EFFECT_PROFILE.ashTransition;
+      const reveal = Math.min(1, localT / 0.28);
+      p.vy -= 0.022 * profile.driftMultiplier; // 越飘越快地上扬
+      p.x += p.vx * 1.5 * profile.driftMultiplier + wind * profile.driftMultiplier;
+      p.y += p.vy * 1.5 * profile.driftMultiplier;
       p.vx *= 0.994;
-      p.alpha = 0.85 * life;
-      p.size = p.bsize * (0.3 + 0.7 * life);
+      p.alpha = Math.min(1, profile.alphaMultiplier * life * (0.82 + reveal * 0.18));
+      p.size = p.bsize * profile.sizeMultiplier * (0.35 + 0.8 * life);
     }
   }
 
@@ -731,14 +766,17 @@ export class Weathering {
     const el = this.ashGetEl?.();
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const count = 2 + Math.floor(Math.random() * 3); // 2–4
+    const ashProfile = WEATHERING_EFFECT_PROFILE.ambientAsh;
+    const count =
+      ashProfile.minCount +
+      Math.floor(Math.random() * (ashProfile.maxCount - ashProfile.minCount + 1));
     for (let i = 0; i < count; i++) {
       this.ashParticles.push({
         x: rect.left + Math.random() * rect.width,
         y: rect.top + Math.random() * rect.height,
-        vx: 0.15 + Math.random() * 0.4,
-        vy: -0.15 - Math.random() * 0.35,
-        size: 0.8 + Math.random() * 1.0,
+        vx: 0.2 + Math.random() * 0.55,
+        vy: -0.22 - Math.random() * 0.45,
+        size: 0.9 + Math.random() * 1.2,
         life: 1,
         alpha: 0.7,
       });
