@@ -45,7 +45,7 @@ test('the Vercel adapter matches the Coding Plan endpoint and handles bad JSON b
 
   assert.match(source, /GLM_BASE_URL/);
   assert.match(source, /https:\/\/open\.bigmodel\.cn\/api\/coding\/paas\/v4/);
-  assert.match(source, /process\.env\.GLM_MODEL \|\| 'glm-4\.6'/);
+  assert.match(source, /process\.env\.GLM_MODEL \|\| 'glm-4-flash'/);
   assert.match(source, /\{ error: 'BAD_BODY' \}/);
 });
 

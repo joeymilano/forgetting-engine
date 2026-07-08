@@ -160,9 +160,20 @@ export function initOnboarding(): OnboardingController {
     const echoLabel = document.getElementById('guide-echo-label');
     const echoNote = document.getElementById('guide-echo-note');
     const tastes = document.getElementById('guide-tastes');
+    const modes = document.getElementById('guide-modes');
     if (privacy) privacy.textContent = strings.privacy;
     if (echoLabel) echoLabel.textContent = strings.echoLabel;
     if (echoNote) echoNote.textContent = strings.echoNote;
+    if (modes) {
+      modes.setAttribute('aria-label', strings.modesLabel);
+      modes.querySelectorAll('li').forEach((item, index) => {
+        const mode = strings.modes[index];
+        const nameEl = item.querySelector<HTMLElement>('[data-mode-name]');
+        const interactionEl = item.querySelector<HTMLElement>('[data-mode-interaction]');
+        if (nameEl) nameEl.textContent = mode?.name ?? '';
+        if (interactionEl) interactionEl.textContent = mode ? ` — ${mode.interaction}` : '';
+      });
+    }
     if (tastes) {
       tastes.setAttribute('aria-label', strings.tastesLabel);
       tastes.querySelectorAll('li').forEach((item, index) => {

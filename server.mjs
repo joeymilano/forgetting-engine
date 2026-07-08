@@ -24,8 +24,10 @@ const PORT = Number(process.env.PROXY_PORT || 8787);
 const KEY = process.env.ZHIPU_API_KEY;
 // 智谱 GLM Coding Plan 端点 + 模型(参考 https://docs.bigmodel.cn/cn/coding-plan/quick-start)
 // ⚠ Coding Plan Key 与普通平台 Key 不通用,务必配套使用
+// ⚠ 默认模型用 glm-4-flash 而非 glm-4.6:后者是推理模型,完整六饮 prompt
+// 常在 18s 服务端超时前无法返回,会导致线上持续静默降级到本地兜底文案。
 const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
-const MODEL = process.env.GLM_MODEL || 'glm-4.6';
+const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
 const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 // —— System Prompt(双语,按 body.lang 选择) ——

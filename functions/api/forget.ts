@@ -14,8 +14,10 @@ interface Env {
 // 智谱 GLM Coding Plan 端点(OpenAI Chat Completion 协议)
 // 参考: https://docs.bigmodel.cn/cn/coding-plan/quick-start
 // ⚠ Coding Plan Key 与普通平台 Key 不通用,务必配套使用同一套端点与 Key
+// ⚠ 默认模型用 glm-4-flash 而非 glm-4.6:后者是推理模型,即使关闭 thinking
+// 完整六饮 prompt 仍常在 18s 服务端超时前无法返回,线上会持续静默降级到本地兜底文案。
 const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
-const DEFAULT_MODEL = 'glm-4.6';
+const DEFAULT_MODEL = 'glm-4-flash';
 
 const WINDOW = 60 * 60 * 1000;
 const LIMIT = 10;

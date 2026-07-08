@@ -682,7 +682,8 @@ stageBtn.addEventListener('keyup', async (e) => {
 // 笔画够长才提交推进,太短则松手回弹(反馈式"合拢")。方向键 + Enter/Space 为键盘兜底。
 stageView.addEventListener('pointerdown', (e) => {
   if (activeMode() !== 'aurora' || isTransitioning) return;
-  if ((e.target as HTMLElement | null)?.closest('#stage-btn')) return;
+  // 极光的按钮本身也可作为拖拽起点(它不像雾海那样有自己的按住手势),
+  // 这样"点了按钮却毫无反应"的死区就不存在了 —— 从按钮上开始拖也能织光。
   auroraStroke = appendPoint([], { x: e.clientX, y: e.clientY, t: e.timeStamp });
   auroraStrokeActive = true;
   auroraStrokePointerId = e.pointerId;
@@ -991,6 +992,18 @@ function init() {
   }
   // 兜底:最多等 3s
   setTimeout(reveal, 3000);
+
+  // 音乐自动播放:浏览器策略禁止无手势自动放音,只能在首次用户交互时静默触发一次。
+  // 只触发一次就移除监听;跳过音乐播放器控件自身的交互,避免和用户主动点播放/暂停打架。
+  const tryAutoStartMusic = (e: Event) => {
+    document.removeEventListener('pointerdown', tryAutoStartMusic, true);
+    document.removeEventListener('keydown', tryAutoStartMusic, true);
+    if (!musicController || musicController.getState().playing) return;
+    if ((e.target as HTMLElement | null)?.closest('#music-player, #music-toggle')) return;
+    void musicController.toggle();
+  };
+  document.addEventListener('pointerdown', tryAutoStartMusic, true);
+  document.addEventListener('keydown', tryAutoStartMusic, true);
 
   enterIdle();
 }

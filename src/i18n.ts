@@ -13,6 +13,11 @@ export interface GuideStepStrings {
   copy: string;
 }
 
+export interface GuideModeStrings {
+  name: string;
+  interaction: string;
+}
+
 export interface GuideStrings {
   replay: string;
   dialogLabel: string;
@@ -26,6 +31,8 @@ export interface GuideStrings {
   echoNote: string;
   tastesLabel: string;
   tastes: [string, string, string, string, string, string];
+  modesLabel: string;
+  modes: [GuideModeStrings, GuideModeStrings, GuideModeStrings];
   steps: [GuideStepStrings, GuideStepStrings, GuideStepStrings];
 }
 
@@ -138,6 +145,12 @@ const STRINGS: Record<Lang, Strings> = {
         'Allow one brief closing line shaped by your words. This preference may be saved; the memory and echo are not.',
       tastesLabel: 'The six sips',
       tastes: ['Sweet', 'Hot', 'Sour', 'Bitter', 'Numb', 'Clear'],
+      modesLabel: 'The three rituals',
+      modes: [
+        { name: 'Stardust', interaction: 'Click the button to take each sip.' },
+        { name: 'Mist', interaction: 'Press and hold the button until the fog clears, then release.' },
+        { name: 'Aurora', interaction: 'Drag a line across the stage; a long enough stroke weaves the light and takes the sip.' },
+      ],
       steps: [
         {
           kicker: 'Before the bowl',
@@ -149,7 +162,7 @@ const STRINGS: Record<Lang, Strings> = {
           kicker: 'Six sips',
           title: 'Let each taste loosen it',
           copy:
-            'Each press takes another sip: sweet, hot, sour, bitter, numb, then clear water. Detail, names, certainty, and emotional weight slowly fall away.',
+            'Each sip loosens the memory further: sweet, hot, sour, bitter, numb, then clear water. Detail, names, certainty, and emotional weight slowly fall away. The gesture that takes each sip depends on the ambient theme (top-right toggle): Stardust — click the button. Mist — press and hold until the fog clears, then release. Aurora — drag a line across the stage; a long enough stroke weaves the light.',
         },
         {
           kicker: 'Across the river',
@@ -217,6 +230,12 @@ const STRINGS: Record<Lang, Strings> = {
         '允许系统根据你的文字留下一句简短结语。此偏好可以保存，但记忆与余响不会被保存。',
       tastesLabel: '六口滋味',
       tastes: ['甜', '辣', '酸', '苦', '麻', '清'],
+      modesLabel: '三种仪式',
+      modes: [
+        { name: '星河', interaction: '点击按钮，即可饮下一口。' },
+        { name: '雾海', interaction: '按住按钮，等雾散开后松开。' },
+        { name: '极光', interaction: '在舞台上拖出一道轨迹；笔画够长，光带织成，便饮下一口。' },
+      ],
       steps: [
         {
           kicker: '碗前',
@@ -228,7 +247,7 @@ const STRINGS: Record<Lang, Strings> = {
           kicker: '六口',
           title: '让每一种滋味松开它',
           copy:
-            '每次按下按钮，便再饮一口：甜、辣、酸、苦、麻，最后是清水。细节、名字、确定感与情绪重量会逐渐淡去。',
+            '每一口都让记忆更松一分：甜、辣、酸、苦、麻，最后是清水。细节、名字、确定感与情绪重量会逐渐淡去。饮下每一口的手势，取决于右上角切换的氛围主题：星河——点击按钮；雾海——按住按钮，等雾散开后松开；极光——在舞台上拖出一道轨迹，笔画够长即织成光带。',
         },
         {
           kicker: '渡过忘川',

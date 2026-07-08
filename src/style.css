@@ -2176,6 +2176,30 @@ html[lang='zh'] .music-error {
   font-size: 12px;
   color: rgba(236, 230, 216, 0.65);
 }
+.guide-modes {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.guide-modes li {
+  padding: 10px 14px;
+  border: 1px solid rgba(236, 230, 216, 0.13);
+  border-radius: 12px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(236, 230, 216, 0.65);
+}
+.guide-modes li b {
+  color: rgba(236, 230, 216, 0.88);
+  font-weight: 600;
+}
+html[lang='zh'] .guide-modes li {
+  font-family: var(--font-zh);
+}
 .guide-actions {
   min-height: 82px;
   justify-content: flex-end;

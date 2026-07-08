@@ -20,8 +20,10 @@ interface Res {
   end(body?: string): void;
 }
 
+// ⚠ 默认模型用 glm-4-flash 而非 glm-4.6:后者是推理模型,完整六饮 prompt
+// 常在 18s 服务端超时前无法返回,会导致线上持续静默降级到本地兜底文案。
 const DEFAULT_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
-const MODEL = process.env.GLM_MODEL || 'glm-4.6';
+const MODEL = process.env.GLM_MODEL || 'glm-4-flash';
 const KEY = process.env.ZHIPU_API_KEY;
 const BASE = (process.env.GLM_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
