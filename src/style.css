@@ -1098,16 +1098,31 @@ html[lang='zh'] .hint {
 .meta-row {
   width: 100%;
   display: flex;
+  align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   min-height: 1em;
 }
-.char-count {
+.char-count,
+.input-requirement {
   font-size: 11px;
-  letter-spacing: 0.28em;
   color: rgba(236, 230, 216, 0.4);
   text-transform: uppercase;
   font-family: var(--font-en);
   transition: color 0.3s ease;
+}
+.char-count {
+  letter-spacing: 0.28em;
+}
+.input-requirement {
+  letter-spacing: 0.12em;
+  color: rgba(236, 230, 216, 0.52);
+  text-align: center;
+}
+html[lang='zh'] .input-requirement {
+  font-family: var(--font-zh);
+  letter-spacing: 0.08em;
 }
 .char-count.ok {
   color: rgba(255, 182, 119, 0.8);

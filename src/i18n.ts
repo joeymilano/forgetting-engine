@@ -40,6 +40,7 @@ export interface Strings {
   brand: string;
   hint: string; // 可含 <br />
   placeholder: string;
+  inputRequirement: string;
   submit: string;
   reset: string;
   footmark: string;
@@ -79,6 +80,7 @@ const STRINGS: Record<Lang, Strings> = {
     brand: 'THE FORGETTING ENGINE',
     hint: 'Write a memory you wish to let go.<br />It will not be saved. Only forgotten.',
     placeholder: 'Begin here…',
+    inputRequirement: 'Minimum 30 characters required',
     submit: 'Surrender to Forgetting',
     reset: 'Let go of another',
     footmark: 'A machine that remembers how to forget',
@@ -177,6 +179,7 @@ const STRINGS: Record<Lang, Strings> = {
     brand: '遗 忘 引 擎',
     hint: '写下一段你想放下的记忆。<br />它不会被保存,只会被遗忘。',
     placeholder: '从这里开始……',
+    inputRequirement: '至少写 30 个字符后才能开始',
     submit: '交给遗忘引擎',
     reset: '再放下一段',
     footmark: '一台记得如何遗忘的机器',
@@ -304,6 +307,7 @@ export function applyLang(lang: Lang): void {
     });
 
   setText('[data-i18n="brand"]', s.brand);
+  setText('[data-i18n="inputRequirement"]', s.inputRequirement);
   setText('[data-i18n="submit"]', s.submit);
   setText('[data-i18n="reset"]', s.reset);
   setText('[data-i18n="footmark"]', s.footmark);

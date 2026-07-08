@@ -159,8 +159,17 @@
         ></textarea>
         <div class="meta-row">
           <span id="char-count" class="char-count">0 / 300</span>
+          <span id="input-requirement" class="input-requirement" data-i18n="inputRequirement">
+            Minimum 30 characters required
+          </span>
         </div>
-        <button id="submit-btn" class="round-btn submit-btn" type="button" disabled>
+        <button
+          id="submit-btn"
+          class="round-btn submit-btn"
+          type="button"
+          aria-describedby="char-count input-requirement"
+          disabled
+        >
           <span class="btn-label" data-i18n="submit">Surrender to Forgetting</span>
           <span class="btn-glow" aria-hidden="true"></span>
         </button>
